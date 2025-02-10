@@ -1,0 +1,14 @@
+%%% blocks
+block B1        1HB 11      %name, pattern, height
+
+%%% patches
+patch CM        B1 0  1 0   %name, block type, theta, radius, z
+patch L1        B1 0  1 1   %name, block type, theta, radius, z
+patch L2        B1 0  1 9   %name, block type, theta, radius, z
+
+%%% origami (type 1)
+origami O2                  %name
+O2 design       2B1C        %design type
+O2 blocks       B1 B1       %block type(s)
+O2 conns        P-CM P-CM   %connection locations
+O2 count        1           %how many to create
