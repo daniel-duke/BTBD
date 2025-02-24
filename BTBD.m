@@ -166,7 +166,7 @@ function os = place_origami(os,p,max_attempts)
                 continue
             end
             os(oi).r = os(oi).update_r;
-            r_other = ars.my_horzcat(r_other,os(oi).r);
+            r_other = ars.myHorzcat(r_other,os(oi).r);
         end
         if overlap == false
             break
@@ -544,14 +544,14 @@ function [nbond,nangle] = compose_geo(geoFile,geoVisFile,os,linked,o_types,conn_
     end
 
     %%% compile mass info
-    natomType = ars.my_max(linked) + 3;
+    natomType = ars.myMax(linked) + 3;
     masses = ones(1,natomType);
     for i = 3:natomType
         masses(i) = 0.1;
     end
 
     %%% write simulation geometry file
-    ars.write_geo(geoFile,dbox,atoms,bonds,angles,masses=masses)
+    ars.writeGeo(geoFile,dbox,atoms,bonds,angles,masses=masses)
 
     %%% initialize visualization arrays
     atoms_vis = atoms;

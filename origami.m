@@ -168,12 +168,12 @@ classdef origami
                     r_other = r_other_initial;
                     continue
                 end
-                r_other = ars.my_horzcat(r_other,o.bs(bi).r(:,o.bs(bi).n_r));
+                r_other = ars.myHorzcat(r_other,o.bs(bi).r(:,o.bs(bi).n_r));
 
                 %%% place second block
                 bi = 2;
                 r12_b2 = cross(r12_b1,box_muller);
-                r_conn = r_conn + p.sigma/sqrt(2)*ars.unit_vector(-r12_b1) + p.sigma/sqrt(2)*ars.unit_vector(r12_b2);
+                r_conn = r_conn + p.sigma/sqrt(2)*ars.unitVector(-r12_b1) + p.sigma/sqrt(2)*ars.unitVector(r12_b2);
                 i_conn = 1;
                 [o.bs(bi),overlap] = o.bs(bi).init(p,i_conn,r_conn,r12_b2,r_other);
                 if overlap == true
@@ -212,24 +212,24 @@ classdef origami
                     r_other = r_other_initial;
                     continue
                 end
-                r_other = ars.my_horzcat(r_other,o.bs(bi).r(:,o.bs(bi).n_r));
+                r_other = ars.myHorzcat(r_other,o.bs(bi).r(:,o.bs(bi).n_r));
 
                 %%% place second block
                 bi = 2;
                 r12 = -r12;
-                r_conn = r_conn + p.r12_eq_ghost.*ars.unit_vector(r12);
+                r_conn = r_conn + p.r12_eq_ghost.*ars.unitVector(r12);
                 i_conn = o.bs(bi).interpret_loc(o.conn{1});
                 [o.bs(bi),overlap] = o.bs(bi).init(p,i_conn,r_conn,r12,r_other);
                 if overlap == true
                     r_other = r_other_initial;
                     continue
                 end
-                r_other = ars.my_horzcat(r_other,o.bs(bi).r(:,o.bs(bi).n_r));
+                r_other = ars.myHorzcat(r_other,o.bs(bi).r(:,o.bs(bi).n_r));
 
                 %%% place third block
                 bi = 3;
                 r12 = cross(r12,box_muller);
-                r_conn = r_conn + p.r12_eq_ghost.*ars.unit_vector(r12);
+                r_conn = r_conn + p.r12_eq_ghost.*ars.unitVector(r12);
                 i_conn = o.bs(bi).interpret_loc(o.conn{1});
                 [o.bs(bi),overlap] = o.bs(bi).init(p,i_conn,r_conn,r12,r_other);
                 if overlap == true

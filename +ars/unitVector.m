@@ -1,4 +1,4 @@
 %%% turn vector into unit vector
-function v = unit_vector(v)
+function v = unitVector(v)
     v = v./norm(v);
 end

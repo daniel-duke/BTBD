@@ -1,5 +1,5 @@
 %%% pos quaternion rotation matrix
-function A = quat_rot(chi,eta,xi,zeta)
+function A = quatRot(chi,eta,xi,zeta)
     A(1,1) = -zeta^2 + eta^2 - xi^2 + chi^2;
     A(1,2) = 2*(xi*eta - zeta*chi);
     A(1,3) = 2*(eta*zeta + xi*chi);

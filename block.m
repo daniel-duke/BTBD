@@ -123,8 +123,8 @@ classdef block
             end
 
             %%% set real bead positions
-            z_basis = ars.unit_vector(xy_normal);
-            y_basis = ars.unit_vector(cross(z_basis,box_muller));
+            z_basis = ars.unitVector(xy_normal);
+            y_basis = ars.unitVector(cross(z_basis,box_muller));
             x_basis = cross(y_basis,z_basis);
             T = [x_basis,y_basis,z_basis];
             origin = r_conn - T*b.r12_cart(:,i_conn);
@@ -136,7 +136,7 @@ classdef block
                     if index ~= 0
                         count = count+1;
                         b.r(:,index) = ars.applyPBC(origin + T*b.r12_cart(:,index), p.dbox);
-                        overlap = ars.check_overlap(b.r(:,index),r_other,p.sigma,p.dbox);
+                        overlap = ars.checkOverlap(b.r(:,index),r_other,p.sigma,p.dbox);
                         if overlap == true
                             return
                         end

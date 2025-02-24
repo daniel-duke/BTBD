@@ -1,6 +1,6 @@
 %%% horizontal concatenation of two matrices with same number of rows.
 %%% does not throw flag about varaible changing size each loop.
-function C = my_horzcat(A,B)
+function C = myHorzcat(A,B)
     if size(A,1) == size(B,1) || size(A,1) == 0 || size(B,1) == 0
         C = [A,B];
     else
