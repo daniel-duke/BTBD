@@ -1,16 +1,8 @@
 %%% Housekeeping
 clc; clear; close all;
 
-%%% Description
-% this script simulates and/or writes the LAMMPS scripts necessary for
-  % simulating block/tether-style DNA origami (rigid bodies connected by
-  % flexible chains, with selective sticky patches).
-
-%%% Version Description
-% added capabilities: better input file
-
 %%% To Do
-% remove tether? if not, add capability for connection to handle tethers
+% either remove tether or capability for connection to handle tethers.
 
 %%% Notation
 % r - position vector
