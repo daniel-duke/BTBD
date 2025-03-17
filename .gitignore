@@ -1,14 +1,10 @@
-# Created by https://www.toptal.com/developers/gitignore/api/matlab
-# Edit at https://www.toptal.com/developers/gitignore?templates=matlab
-
-### MATLAB ###
 # Windows default autosave extension
 *.asv
 
-# OSX / *nix default autosave extension
+# OSX / Unix default autosave extension
 *.m~
 
-# Compiled MEX binaries (all platforms)
+# Compiled MEX binaries
 *.mex*
 
 # Packaged app and toolbox files
@@ -34,4 +30,3 @@ codegen/
 # Octave session info
 octave-workspace
 
-# End of https://www.toptal.com/developers/gitignore/api/matlab
