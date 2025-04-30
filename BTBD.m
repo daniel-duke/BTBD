@@ -22,7 +22,7 @@ clc; clear; close all;
 %%% Input file
 % blocks: rigid bodies
   % name - how to identify the block for adding patches and making origamis
-  % pattern - arrangement of beads in the xy-plane (see block object)
+  % pattern - arangement of beads in the xy-plane (see block object)
   % height - number of beads in the z-direction
 % tethers: womrm-like-chains
   % name - how to identify the tether for adding patches and making origamis
@@ -34,7 +34,7 @@ clc; clear; close all;
   % z - height (in r12_eq_block units) along z-axis of patch location
 % origami: connected collection of blocks and tethers
   % name - how to identify the origami for adding linkers
-  % design - arrangement of blocks and tethers (see origami object)
+  % design - arangement of blocks and tethers (see origami object)
   % block - names of block types to use
   % conn - location for 5' and 3' connections
   % count - number of origamis to create
@@ -73,7 +73,7 @@ nstep_prod      = 1E7;      %steps    - if and how long to run producton
 dump_every      = 1E4;      %steps    - how often to write to output
 
 %%% computational parameters
-dt              = 0.08;     %ns       - timestep
+dt              = 0.08;     %ns       - time step
 dbox            = 150;      %nm       - periodic boundary diameter
 verlet_skin     = 4;        %nm       - width of neighbor list skin (= r12_cut - r12_cut_WCA)
 neigh_every     = 1E1;      %steps    - how often to consider updating neighbor list
