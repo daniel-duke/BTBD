@@ -1,7 +1,6 @@
 %%% origami class for BTBD
 classdef origami
     properties
-        design      %structure type
         ts          %tether objects
         bs          %block objects
         cs          %internal connections
@@ -16,9 +15,8 @@ classdef origami
 
     methods
         %%% constructor
-        function o = origami(design,ts,bs,conn)
+        function o = origami(ts,bs,conn)
             if nargin > 0
-                o.design = design;
                 o.ts = ts;
                 o.bs = bs;
                 o.cs = [];

@@ -6,6 +6,7 @@ rng(42)
 % replace bond write/break with react if unlinking is desired.
 % initialize origami in empty box (ensuring no internal overlap), then
   % place into system (ensuring no overlap with other origamis).
+% add option to define origami initial configuration.
 
 %%% Notation
 % r - position vector
@@ -37,7 +38,6 @@ rng(42)
   % z - height (in r12_eq_block units) along z-axis of patch location
 % origami: connected collection of blocks and tethers
   % name - how to identify the origami for adding linkers
-  % design - arangement of blocks and tethers (see origami object)
   % block - names of block types to use
   % conn - location for 5' and 3' connections
   % count - number of origamis to create
@@ -271,7 +271,6 @@ function [os,linked,is_intra,o_types,conn_types,conn_r12_eqs] = read_input(inFil
     %%% initialize dictionaries
     tethers = dictionary();
     blocks = dictionary();
-    o_designs = dictionary();
     o_tethers = dictionary();
     o_blocks = dictionary();
     o_conns = dictionary();
@@ -322,7 +321,6 @@ function [os,linked,is_intra,o_types,conn_types,conn_r12_eqs] = read_input(inFil
                 case 'patch'
                     blocks(extract{3}) = blocks(extract{3}).add_patch(extract{2},str2double(extract{4}),str2double(extract{5}),str2double(extract{6}));
                 case 'origami'
-                    o_designs(extract{2}) = "";
                     o_tethers{extract{2}} = tether.empty;
                     o_blocks{extract{2}} = block.empty;
                     o_conns{extract{2}} = cell(0);
@@ -342,10 +340,8 @@ function [os,linked,is_intra,o_types,conn_types,conn_r12_eqs] = read_input(inFil
                     end
                     linker_locs{1,nlinker} = extract{4};
                 otherwise
-                    if isKey(o_designs,extract{1})
+                    if isKey(o_counts,extract{1})
                         switch extract{2}
-                            case 'design'
-                                o_designs(extract{1}) = extract{3};
                             case 'tether'
                                 tether_list = tether.empty;
                                 for ti = 1:length(extract)-2
@@ -387,10 +383,10 @@ function [os,linked,is_intra,o_types,conn_types,conn_r12_eqs] = read_input(inFil
 
     %%% create origamis
     o_indices = dictionary();
-    o_keys = keys(o_designs)';
-    for o_design = o_keys
-        o_indices{o_design} = length(os)+1:length(os)+o_counts(o_design);
-        os(o_indices{o_design}) = origami( o_designs(o_design), o_tethers{o_design}, o_blocks{o_design}, o_conns{o_design});
+    o_keys = keys(o_counts)';
+    for o_name = o_keys
+        o_indices{o_name} = length(os)+1:length(os)+o_counts(o_name);
+        os(o_indices{o_name}) = origami( o_tethers{o_name}, o_blocks{o_name}, o_conns{o_name});
     end
 
     %%% create linkers
@@ -424,22 +420,22 @@ function [os,linked,is_intra,o_types,conn_types,conn_r12_eqs] = read_input(inFil
     end
 
     %%% connections
-    no_type = length(o_designs);
+    no_type = length(o_counts);
     max_nconn = 0;
-    for o_design = o_keys
-        nconn = length(o_conns{o_design});
+    for o_name = o_keys
+        nconn = length(o_conns{o_name});
         max_nconn = max([nconn,max_nconn]);
     end
     conn_types = zeros(no_type,max_nconn);
     conn_r12_eqs = zeros(no_type,max_nconn);
     conn_type_count = 0;
     i = 0;
-    for o_design = o_keys
+    for o_name = o_keys
         i = i+1;
-        for j = 1:length(o_conns{o_design})
+        for j = 1:length(o_conns{o_name})
             conn_type_count = conn_type_count+1;
             conn_types(i,j) = conn_type_count;
-            conn_r12_eqs(i,j) = o_conns{o_design}{j}{5};
+            conn_r12_eqs(i,j) = o_conns{o_name}{j}{5};
         end
     end
 end

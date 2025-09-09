@@ -13,7 +13,6 @@ patch L2        B2 0  1 9           %name, block type, theta, radius, z
 
 %%% origami (type 1)
 origami O1                          %name
-O1 design       3B                  %design type
 O1 blocks       B1 B1 B1            %block type(s)
 O1 conn         1 P-CL 2 P-CR 6     %connection location
 O1 conn         2 P-CL 3 P-CR 6     %connection location
@@ -22,7 +21,6 @@ O1 count        8                   %how many to create
 
 %%% origami (type 2)
 origami O2                          %name
-O2 design       2B                  %design type
 O2 blocks       B2 B2               %block type(s)
 O2 conn         1 P-CM 2 P-CM 6     %connection location
 O2 count        12                  %how many to create
