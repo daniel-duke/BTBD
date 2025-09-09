@@ -1,8 +1,8 @@
 %%% tether class for BTBD
 classdef tether
     properties
-        n           %number of beads
-        r           %positions
+        n           % number of beads
+        r           % positions
     end
 
     methods
@@ -20,7 +20,7 @@ classdef tether
         
         %%% initialize tether positions with first bead at r_start and next
         %%% bead pointing in direction dir
-        function [r,overlap] = init(t,p,r_start,dir,r_other)
+        function [r,overlap] = init(t,p,r_start,r12,r_other)
             r = zeros(3,t.n);
 
             %%% place first bead
@@ -31,7 +31,7 @@ classdef tether
             end
 
             %%% place second bead
-            r(:,2) = r(:,1) + p.r12_eq_tether.*ars.unitVector(dir);
+            r(:,2) = r(:,1) + p.r12_eq_tether.*ars.unitVector(r12);
             overlap = ars.checkOverlap(r(:,2),[r_other,r(:,1)],p.sigma,p.dbox);
             if overlap == true
                 return

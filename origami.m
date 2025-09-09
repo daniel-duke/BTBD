@@ -1,16 +1,16 @@
 %%% origami class for BTBD
 classdef origami
     properties
-        ts          %tether objects
-        bs          %block objects
-        cs          %internal connections
-        conn        %internal connection info
-        n           %total number of particles
-        r           %total positions
-        get_dom     %map pi to domain identity (1 for tether, 2 for block, 3 for patch)
-        get_domi    %map pi to domain index (which tether, or which block)
-        get_i       %map pi to bead index (index within domain)
-        get_pi      %map dom, domi, and i to pi (index within origami)
+        ts          % tether objects
+        bs          % block objects
+        cs          % internal connections
+        conn        % internal connection info
+        n           % total number of particles
+        r           % total positions
+        get_dom     % map pi to domain identity (1 for tether, 2 for block, 3 for patch)
+        get_domi    % map pi to domain index (which tether, or which block)
+        get_i       % map pi to bead index (index within domain)
+        get_pi      % map dom, domi, and i to pi (index within origami)
     end
 
     methods
@@ -75,7 +75,7 @@ classdef origami
         function overstretch = check_connections(o,p,U_overstretched)
             for ci = 1:length(o.cs)
                 r12_eq = o.cs(ci).r12_eq;
-                r12_overstretched = r12_eq + sqrt(2*U_overstretched/p.k_x_ghost);
+                r12_overstretched = r12_eq + sqrt(2*U_overstretched/p.k_x_conn);
                 if o.cs(ci).doms(1) == 1
                     r1 = o.ts(o.cs(ci).domis(1)).r(:,o.cs(ci).is(1));
                 else

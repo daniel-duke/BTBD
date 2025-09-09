@@ -4,9 +4,13 @@ rng(42)
 
 %%% To Do
 % replace bond write/break with react if unlinking is desired.
+% add option to define origami initial configuration.
+% add option to set linker spring constnat.
+% add option to set connection distance and spring constant.
 % initialize origami in empty box (ensuring no internal overlap), then
   % place into system (ensuring no overlap with other origamis).
-% add option to define origami initial configuration.
+% improve bead notation: bi = block index, ib = bead index within block,
+  % thus removing need for confusing pi and ui indices.
 
 %%% Notation
 % r - position vector
@@ -19,7 +23,7 @@ rng(42)
 % var.n or n_var - number of beads in var (e.g. t.n = beads in tether)
 % i - bead index within domains (tethers, blocks)
 % pi - bead (particle) index across entire origami (tethers then blocks)
-% pai - patch index (within block)
+% ui - (universal) bead index across entire system
 % connection - permenant (usually ssDNA scaffold) bond
 % linker - switchable (usually hybridizing DNA) bond
 
@@ -70,48 +74,37 @@ outputFold = "";
 nsim = 1;
 
 %%% simulation parameters
-nstep_eq        = 1E4;      %steps    - if and how long to equilibrate/shrink
-shrink_ratio    = 1;        %none     - box compression (final/initial)
-nstep_prod      = 1E7;      %steps    - if and how long to run producton
-dump_every      = 1E4;      %steps    - how often to write to output
+nstep_eq        = 1E4;      % steps         - if and how long to equilibrate/shrink
+shrink_ratio    = 1;        % none          - box compression (final/initial)
+nstep_prod      = 1E7;      % steps         - if and how long to run producton
+dump_every      = 1E4;      % steps         - how often to write to output
 
 %%% computational parameters
-dt              = 0.08;     %ns       - time step
-dbox            = 150;      %nm       - periodic boundary diameter
-verlet_skin     = 4;        %nm       - width of neighbor list skin (= r12_cut - r12_cut_WCA)
-neigh_every     = 1E1;      %steps    - how often to consider updating neighbor list
-react_every     = 1E1;      %steps    - how often to check for linker hybridization
+dt              = 0.08;     % ns            - time step
+dbox            = 150;      % nm            - periodic boundary diameter
+verlet_skin     = 4;        % nm            - width of neighbor list skin (= r12_cut - r12_cut_WCA)
+neigh_every     = 1E1;      % steps         - how often to consider updating neighbor list
+react_every     = 1E1;      % steps         - how often to check for linker hybridization
 
 %%% physical parameters
-kB              = 0.0138;   %pN*nm/K  - Boltzmann constant
-T               = 300;      %K        - temperature
-r_h_bead        = 1.28;     %nm       - hydrodynamic radius of single bead
-visc            = 0.8472;   %mPa/s    - viscosity (pN*ns/nm^2)
-
-%%% bead parameters
-sigma           = 10;       %nm       - bead van der Walls radius
-epsilon         = 1;        %pN*nm    - WCA energy parameter
-r12_eq_block    = 5;        %nm       - equilibrium block bead separation
-r12_adj_block   = 5;        %nm       - adjacent block helix separation
-
-%%% tether parameters 
-r12_eq_tether   = 2.72;     %nm       - equilibrium bead separation
-k_x_tether      = 152;      %pN/nm    - backbone spring constant
-Lp_tether       = 4;        %nm       - persistence length
-
-%%% ghost tether parameters
-k_x_ghost       = 5.18;     %pN/nm    - attractive backbone spring constant (5.18 for ds14)
-
-%%% linker parameters
-nt_linker       = 14;       %nt       - number of nucleotides
-k_x_linker      = 55.68;    %pN/nm    - attractive backbone spring constant (55.68 for ds14)
-U_cut_linker    = 10;       %kcal/mol - energy cutoff for linker attraction
+T               = 300;      % K             - temperature
+sigma           = 10;       % nm            - WCA distance parameter
+epsilon         = 1;        % kcal/mol      - WCA energy parameter
+r12_eq_block    = 5;        % nm            - equilibrium block bead separation
+r12_adj_block   = 5;        % nm            - adjacent block helix separation
+r12_eq_tether   = 2.72;     % nm            - equilibrium tether bead separation
+k_x_tether      = 120;      % kcal/mol/nm2  - backbone spring constant
+Lp_tether       = 4;        % nm            - persistence length
+k_x_conn        = 1;        % kcal/mol/nm2  - connection spring constant
+r12_eq_linker   = 5;        % nm            - linker equilibrium distance
+k_x_linker      = 1;        % kcal/mol/nm2  - linker spring constant
+U_cut_linker    = 10;       % kcal          - linker formation energy cutoff
 
 %%% create parameters class
 p = parameters(nstep_eq,shrink_ratio,nstep_prod,dump_every,...
-               dt,dbox,verlet_skin,neigh_every,react_every,kB,T,r_h_bead,visc,...
-               sigma,epsilon,r12_eq_block,r12_adj_block,r12_eq_tether,k_x_tether,Lp_tether,...
-               k_x_ghost,nt_linker,k_x_linker,U_cut_linker);
+               dt,dbox,verlet_skin,neigh_every,react_every,...
+               T,sigma,epsilon,r12_eq_block,r12_adj_block,r12_eq_tether,k_x_tether,Lp_tether,...
+               k_x_conn,r12_eq_linker,k_x_linker,U_cut_linker);
 
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -452,7 +445,7 @@ function [nbond,nangle] = compose_geo(geoFile,geoVisFile,os,linked,o_types,conn_
     % atom ID - universal bead index
     % molecule tag - universal domain index
     % atom type - tether (1), unlinked block (2), interlinked block (>2), intralinked block (end)
-    % bond type - tether backbone (1), linker (2), ghost tether (>2) 
+    % bond type - tether backbone (1), linker (2), connection (>2)
 
     %%% calculate index mapping
     [get_oi,get_pi,get_ui] = map_indices(os);
@@ -652,7 +645,7 @@ function write_input(inputFile,outputFold,p,is_intra,nbond,nangle,conn_r12_eqs)
         for j = 1:size(conn_r12_eqs,2)
             conn_count = conn_count + 1;
             fprintf(f,strcat(...
-                "bond_coeff      ", num2str(conn_count+2), " ", ars.fstring(p.k_x_ghost/2,0,2), " ", ars.fstring(conn_r12_eqs(i,j),0,2), "\n"));
+                "bond_coeff      ", num2str(conn_count+2), " ", ars.fstring(p.k_x_conn/2,0,2), " ", ars.fstring(conn_r12_eqs(i,j),0,2), "\n"));
         end
     end
     end

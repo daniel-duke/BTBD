@@ -1,20 +1,20 @@
 %%% block class for BTBD
 classdef block
     properties
-        pattern     %helix locations in block xy-plane
-        hiHollow    %helix indices of hollow helices
-        hiL         %helix index for left connections
-        hiR         %helix index for right connections
-        hiM         %helix index for middle connections
-        patches     %names of patches
-        npatch      %number of patches
-        r12_pat_pol %patch internal positions (theta,radius,z)
-        r12_cart    %internal positions of all beads (x,y,z)
-        n_xy        %number of helices
-        n_z         %number of beads in each helix
-        n_r         %number of real beads
-        n           %number of beads in total
-        r           %bead positions
+        pattern     % helix locations in block xy-plane
+        hiHollow    % helix indices of hollow helices
+        hiL         % helix index for left connections
+        hiR         % helix index for right connections
+        hiM         % helix index for middle connections
+        patches     % names of patches
+        npatch      % number of patches
+        r12_pat_pol % patch internal positions (theta,radius,z)
+        r12_cart    % internal positions of all beads (x,y,z)
+        n_xy        % number of helices
+        n_z         % number of beads in each helix
+        n_r         % number of real beads
+        n           % number of beads in total
+        r           % bead positions
     end
 
     methods

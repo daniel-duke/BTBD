@@ -1,10 +1,10 @@
 %%% connection class for BTBD 
 classdef connection
     properties
-        doms         %domain types (1 for tether, 2 for block)
-        domis        %indices of domain
-        is           %indices of connected beads in domin
-        r12_eq       %equilibrium separation
+        doms         % domain types (1 for tether, 2 for block)
+        domis        % indices of domain
+        is           % indices of connected beads in domin
+        r12_eq       % equilibrium separation
     end
 
     methods

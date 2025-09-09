@@ -8,7 +8,6 @@ patch L2        B1 0  1 9           %name, block type, theta, radius, z
 
 %%% origami (type 1)
 origami O2                          %name
-O2 design       2B1C                %design type
 O2 blocks       B1 B1               %block type(s)
 O2 conn         1 P-CM 2 P-CM 6     %connection locations
 O2 count        1                   %how many to create
