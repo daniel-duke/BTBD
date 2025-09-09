@@ -1,8 +1,11 @@
 %%% Housekeeping
 clc; clear; close all;
+rng(42)
 
 %%% To Do
-% either remove tether or capability for connection to handle tethers.
+% replace bond write/break with react if unlinking is desired.
+% initialize origami in empty box (ensuring no internal overlap), then
+  % place into system (ensuring no overlap with other origamis).
 
 %%% Notation
 % r - position vector
@@ -43,10 +46,10 @@ clc; clear; close all;
   % block indices - number, "A" for all blocks, or "B" for all but the last block
   % conn - location for 5' and 3' connections
 % note: locations are defined by a flag (P or B, for patch or bead),
-  % followed by a hyphen, followed by either the patch index or the bead
-  % location, as given by the helix identifier (L, M, or R, for left, 
-  % middle, or right) and the z-location; this applies to locations given
-  % for origami connections and linkers.
+  % followed by a hyphen, followed by either the patch name or the bead
+  % location, as given by the helix identifier (L/M/R for left/middle/right)
+  % and the z-location; this applies to locations given for origami
+  % connections and linkers.
 % note: linkers require two lines, one starting with the keywork "linker"
   % that defines the location of the first side of the linker, and another
   % directly afterwards that defines the location of the second side of the
@@ -58,7 +61,7 @@ clc; clear; close all;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% read input
-inFile = "./designs/dimer3C.txt";
+inFile = "./designs/control.txt";
 [os,linked,is_intra,o_types,conn_types,conn_r12_eqs] = read_input(inFile);
 
 %%% output parameters
@@ -118,6 +121,7 @@ p = parameters(nstep_eq,shrink_ratio,nstep_prod,dump_every,...
 %%% output folder 
 mkdir(simsFold)
 
+%%% loop over simulations
 for i = 1:nsim
     if nsim == 1
         outFold = simsFold;
@@ -127,8 +131,7 @@ for i = 1:nsim
     end
 
     %%% initialize positions
-    max_attempts = 10;
-    os = place_origami(os,p,max_attempts);
+    os = place_origami(os,p);
 
     %%% write lammps simulation geometry file
     geoFile = outFold + "geometry.in";
@@ -146,24 +149,49 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% initilize positions of the entire system
-function os = place_origami(os,p,max_attempts)
-    for attempts = 1:max_attempts
-        r_other = [];
+function os = place_origami(os,p)
+    max_attempts = 10;
+
+    %%% initialize avoided positions
+    r_other = [];
+    r_other_initial = r_other;
+
+    %%% system attempt loop
+    attempts = 0;
+    while true
+
+        %%% check attempts
+        if attempts == max_attempts
+            error("Could not place origamis.")
+        end
+
+        %%% loop over origamis
         for oi = 1:length(os)
-            [os(oi),overlap] = os(oi).init(p,r_other);
-            if overlap == true
-                if attempts >= max_attempts
-                    error("Could not place origamis.")
-                end
-                continue
+
+            %%% add origami
+            [os(oi),fail,r_other] = os(oi).init(p,r_other);
+
+            %%% reset if failed
+            if fail == true
+                attempts = attempts + 1;
+                r_other = r_other_initial;
+                break
             end
+
+            %%% update positions
             os(oi).r = os(oi).update_r;
-            r_other = ars.myHorzcat(r_other,os(oi).r);
         end
-        if overlap == false
-            break
+
+        %%% reset if failed
+        if fail == true
+            continue
         end
+
+        %%% system successfully initiated
+        break
     end
+
+    %%% report the wonderful news
     fprintf("Initialization complete.\n")
 end
 
@@ -237,7 +265,7 @@ function [os,linked,is_intra,o_types,conn_types,conn_r12_eqs] = read_input(inFil
     %%% open file
     f = fopen(inFile, 'r');
     if f == -1
-        error("Could not open file");
+        error("Could not open file.");
     end
 
     %%% initialize dictionaries
@@ -282,7 +310,7 @@ function [os,linked,is_intra,o_types,conn_types,conn_r12_eqs] = read_input(inFil
             elseif ~isnan(str2double(extract{2}))
                 linker_bis(2,nlinker) = str2double(extract{2});
             else
-                error("Unknown linker block: " + extract{2})
+                error("Unknown linker block: " + extract{2} + ".")
             end
             linker_locs{2,nlinker} = extract{3};
         else
@@ -310,7 +338,7 @@ function [os,linked,is_intra,o_types,conn_types,conn_r12_eqs] = read_input(inFil
                     elseif ~isnan(str2double(extract{3}))
                         linker_bis(1,nlinker) = str2double(extract{3});
                     else
-                        error("Unknown linker block: " + extract{3})
+                        error("Unknown linker block: " + extract{3} + ".")
                     end
                     linker_locs{1,nlinker} = extract{4};
                 otherwise
@@ -336,10 +364,10 @@ function [os,linked,is_intra,o_types,conn_types,conn_r12_eqs] = read_input(inFil
                             case 'count'
                                 o_counts(extract{1}) = str2double(extract{3});
                             otherwise
-                                warning("Unknown origami parameter: " + extract{2})
+                                error("Unknown origami parameter: " + extract{2})
                         end
                     else
-                        warning("Unknown system parameter: " + extract{1})
+                        error("Unknown system parameter: " + extract{1})
                     end
             end
         end
@@ -566,7 +594,7 @@ function [nbond,nangle] = compose_geo(geoFile,geoVisFile,os,linked,o_types,conn_
     end
 
     %%% write visualization geometry file
-    ars.write_geo(geoVisFile,dbox,atoms_vis,bonds_vis,angles_vis)
+    ars.writeGeo(geoVisFile,dbox,atoms_vis,bonds_vis,angles_vis)
 end
 
 

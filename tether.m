@@ -60,7 +60,7 @@ classdef tether
             theta = sqrt(2*kBT/k_theta*log(1/rand));
             q = [cos(phi/2),sin(phi/2).*ars.unitVector(r12)'];
             A = ars.quatRot(q(1),q(2),q(3),q(4));
-            perp_unit = ars.unitVector(cross(r12,box_muller));
+            perp_unit = ars.unitVector(cross(r12,ars.boxMuller()));
             r23_mag = r12_eq + (2*randi([0 1])-1)*sqrt(2*kBT/k_x*log(1/rand));
             r23 = r23_mag.*( cos(theta).*ars.unitVector(r12) + sin(theta)*(A*perp_unit) );
         end

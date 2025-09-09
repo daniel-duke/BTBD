@@ -1,32 +1,34 @@
 %%% blocks
-block B1        1HB 11      %name, pattern, height
-block B2        1HB 11      %name, pattern, height
+block B1        1HB 11              %name, pattern, height
+block B2        1HB 11              %name, pattern, height
 
 %%% patches
-patch CL        B1 0  1 0   %name, block type, theta, radius, z
-patch CR        B1 90 1 0   %name, block type, theta, radius, z
-patch L1        B1 45 1 1   %name, block type, theta, radius, z
-patch L2        B1 45 1 9   %name, block type, theta, radius, z
-patch CM        B2 0  1 0   %name, block type, theta, radius, z
-patch L1        B2 0  1 1   %name, block type, theta, radius, z
-patch L2        B2 0  1 9   %name, block type, theta, radius, z
+patch CL        B1 0  1 0           %name, block type, theta, radius, z
+patch CR        B1 90 1 0           %name, block type, theta, radius, z
+patch L1        B1 45 1 1           %name, block type, theta, radius, z
+patch L2        B1 45 1 9           %name, block type, theta, radius, z
+patch CM        B2 0  1 0           %name, block type, theta, radius, z
+patch L1        B2 0  1 1           %name, block type, theta, radius, z
+patch L2        B2 0  1 9           %name, block type, theta, radius, z
 
 %%% origami (type 1)
-origami O1                  %name
-O1 design       3B          %design type
-O1 blocks       B1 B1 B1    %block type(s)
-O1 conns        P-CL P-CR   %connection locations
-O1 count        8           %how many to create
+origami O1                          %name
+O1 design       3B                  %design type
+O1 blocks       B1 B1 B1            %block type(s)
+O1 conn         1 P-CL 2 P-CR 6     %connection location
+O1 conn         2 P-CL 3 P-CR 6     %connection location
+O1 conn         3 P-CL 1 P-CR 6     %connection location
+O1 count        8                   %how many to create
 
 %%% origami (type 2)
-origami O2                  %name
-O2 design       2B1C        %design type
-O2 blocks       B2 B2       %block type(s)
-O2 conns        P-CM P-CM   %connection locations
-O2 count        12          %how many to create
+origami O2                          %name
+O2 design       2B                  %design type
+O2 blocks       B2 B2               %block type(s)
+O2 conn         1 P-CM 2 P-CM 6     %connection location
+O2 count        12                  %how many to create
 
 %%% linkers
-linker          O1 A P-L1   %origami type, block indices, location
-                O2 A P-L2   %origami type, block indices, location
-linker          O1 A P-L2   %origami type, block indices, location
-                O2 A P-L1   %origami type, block indices, location
+linker          O1 A P-L1           %origami type, block indices, location
+                O2 A P-L2           %origami type, block indices, location
+linker          O1 A P-L2           %origami type, block indices, location
+                O2 A P-L1           %origami type, block indices, location

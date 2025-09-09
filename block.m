@@ -39,6 +39,7 @@ classdef block
             end
         end
 
+
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         %%% Functions %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -75,7 +76,7 @@ classdef block
                 if ~isempty(patch_index)
                     index = b.n-b.npatch+patch_index;
                 else
-                    error("Unknown patch type: " + loc(3:end))
+                    error("Unknown patch type: " + loc(3:end) + ".")
                 end
             elseif loc(1) == 'B'
                 if loc(3) == 'L'
@@ -85,72 +86,99 @@ classdef block
                 elseif loc(3) == 'R'
                     hi = b.hiR;
                 else
-                    error("Unknown helix type: " + loc(3))
+                    error("Unknown helix type: " + loc(3) + ".")
                 end
                 zi = str2double(loc(4:end));
                 index = b.get_i(hi,zi);
             else
-                error("Unknown connection type:" + loc(1))
+                error("Unknown connection type: " + loc(1) + ".")
             end
         end
 
 
-        %%% initialize block with bead indexed by i_conn at r_conn and 
-        %%% orientation defined by xy-plane normal vector (z-direction)
-        function [b,overlap] = init(b,p,i_conn,r_conn,xy_normal,r_other)
+        %%% initialize block with bead indexed by i_conn connected to
+        %%% r_source at distance r12_conn_mag
+        function [b,overlap,r_other] = init(b,p,i_conn,r_source,r12_conn_mag,r_other)
+            max_attempts = 100;
 
-            %%% set real bead internal positions
-            for zi = 1:b.n_z
-                for hi = 1:b.n_xy
-                    index = b.get_i(hi,zi);
-                    if index ~= 0
-                        r12 = zeros(3,1);
-                        r12(1:2) = p.r12_adj_block*(b.pattern(:,hi)-b.pattern(:,1));
-                        r12(3) = p.r12_eq_block*(zi-1);
-                        b.r12_cart(:,index) = r12;
-                    end
+            %%% get position of connected bead
+            r_conn = r_source + r12_conn_mag*ars.unitVector(ars.boxMuller());
+
+            %%% attempt loop
+            attempts = 0;
+            while true
+
+                %%% check block attempts
+                if attempts == max_attempts
+                    break
                 end
-            end
 
-            %%% set patch internal positions
-            for i = 1:b.npatch
-                index = b.n_r+i;
-                theta = b.r12_pat_pol(1,i);
-                radius = b.r12_pat_pol(2,i);
-                z = b.r12_pat_pol(3,i);
-                [x,y,z] = pol2cart(deg2rad(theta),radius*p.r12_adj_block,z*p.r12_eq_block);
-                b.r12_cart(:,index) = [x;y;z];
-            end
-
-            %%% set real bead positions
-            z_basis = ars.unitVector(xy_normal);
-            y_basis = ars.unitVector(cross(z_basis,box_muller));
-            x_basis = cross(y_basis,z_basis);
-            T = [x_basis,y_basis,z_basis];
-            origin = r_conn - T*b.r12_cart(:,i_conn);
-            b.r = zeros(3,b.n);
-            count = 0;
-            for zi = 1:b.n_z
-                for hi = 1:b.n_xy
-                    index = b.get_i(hi,zi);
-                    if index ~= 0
-                        count = count+1;
-                        b.r(:,index) = ars.applyPBC(origin + T*b.r12_cart(:,index), p.dbox);
-                        overlap = ars.checkOverlap(b.r(:,index),r_other,p.sigma,p.dbox);
-                        if overlap == true
-                            return
+                %%% real bead internal positions
+                for zi = 1:b.n_z
+                    for hi = 1:b.n_xy
+                        index = b.get_i(hi,zi);
+                        if index ~= 0
+                            r12 = zeros(3,1);
+                            r12(1:2) = p.r12_adj_block*(b.pattern(:,hi)-b.pattern(:,1));
+                            r12(3) = p.r12_eq_block*(zi-1);
+                            b.r12_cart(:,index) = r12;
                         end
                     end
                 end
-            end
+    
+                %%% patch bead internal positions
+                for i = 1:b.npatch
+                    index = b.n_r+i;
+                    theta = b.r12_pat_pol(1,i);
+                    radius = b.r12_pat_pol(2,i);
+                    z = b.r12_pat_pol(3,i);
+                    [x,y,z] = pol2cart(deg2rad(theta),radius*p.r12_adj_block,z*p.r12_eq_block);
+                    b.r12_cart(:,index) = [x;y;z];
+                end
+    
+                %%% real bead absolute positions
+                z_basis = ars.unitVector(ars.boxMuller());
+                y_basis = ars.unitVector(cross(z_basis,ars.boxMuller()));
+                x_basis = cross(y_basis,z_basis);
+                T = [x_basis,y_basis,z_basis];
+                origin = r_conn - T*b.r12_cart(:,i_conn);
+                b.r = zeros(3,b.n);
+                count = 0;
+                for zi = 1:b.n_z
+                    for hi = 1:b.n_xy
+                        index = b.get_i(hi,zi);
+                        if index ~= 0
+                            count = count+1;
+                            b.r(:,index) = ars.applyPBC(origin + T*b.r12_cart(:,index), p.dbox);
+                            overlap = ars.checkOverlap(b.r(:,index),r_other,p.sigma,p.dbox);
+                            if overlap == true
+                                break
+                            end
+                        end
+                    end
+                    if overlap == true
+                        break
+                    end
+                end
 
-            %%% set patch positions
-            for i = 1:b.npatch
-                index = b.n_r+i;
-                b.r(:,index) = ars.applyPBC(origin + T*b.r12_cart(:,index), p.dbox);
+                %%% reset if overlap
+                if overlap == true
+                    attempts = attempts + 1;
+                    continue
+                end
+    
+                %%% patch bead absolute positions
+                for i = 1:b.npatch
+                    index = b.n_r+i;
+                    b.r(:,index) = ars.applyPBC(origin + T*b.r12_cart(:,index), p.dbox);
+                end
+
+                %%% block successfully initiated
+                r_other = ars.myHorzcat(r_other,b.r(:,1:b.n_r));
+                break
             end
         end
-
+    
     end
     methods (Static)
 
@@ -204,7 +232,7 @@ classdef block
                 hiM = 2;
 
             else
-                error("Unknown block pattern")
+                error("Unknown block pattern.")
             end
         end
 
