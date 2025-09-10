@@ -150,7 +150,7 @@ classdef block
                         if index ~= 0
                             count = count+1;
                             b.r(:,index) = ars.applyPBC(origin + T*b.r12_cart(:,index), p.dbox);
-                            overlap = ars.checkOverlap(b.r(:,index),r_other,p.sigma,p.dbox);
+                            overlap = ars.checkOverlap(b.r(:,index),r_other,p.r12_cut_WCA,p.dbox);
                             if overlap == true
                                 break
                             end
@@ -212,8 +212,8 @@ classdef block
             elseif pattern_label == "hex6HB"
                 q = sqrt(3)/2;
                 %%% all helices
-                pattern = [0.0 0.5 1.5 2.0 1.5 0.5;...
-                           0   -q  -q  0   q   q  ];
+                pattern = [-1.0 -0.5 0.5 1.0 0.5 -0.5;...
+                           0    -q   -q  0   q   q  ];
                 %%% helix identification
                 hiHollow =  [];
                 hiL = 1;

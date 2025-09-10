@@ -1,0 +1,22 @@
+%%% blocks
+block B1        1HB 11                 %name, pattern, height
+
+%%% patches
+patch CRU       B1 60  1.2 -1          %name, block, theta, radius, z
+patch CRL       B1 120 1.2 -1          %name, block, theta, radius, z
+patch CLL       B1 240 1.2 -1          %name, block, theta, radius, z
+patch CLU       B1 300 1.2 -1          %name, block, theta, radius, z
+patch L1        B1 0   1 11            %name, block, theta, radius, z
+patch L2        B1 120 1 11            %name, block, theta, radius, z
+patch L3        B1 240 1 11            %name, block, theta, radius, z
+
+%%% origami (type 1)
+origami O1                          %name
+O1 blocks       B1 B1 B1            %block type(s)
+O1 conn         1 P-CRU 2 P-CLU 0   %block index 1, location 1, block index 2, location 2, length
+O1 conn         1 P-CRL 2 P-CLL 0   %block index 1, location 1, block index 2, location 2, length
+O1 conn         2 P-CRU 3 P-CLU 0   %block index 1, location 1, block index 2, location 2, length
+O1 conn         2 P-CRL 3 P-CLL 0   %block index 1, location 1, block index 2, location 2, length
+O1 conn         3 P-CRU 1 P-CLU 0   %block index 1, location 1, block index 2, location 2, length
+O1 conn         3 P-CRL 1 P-CLL 0   %block index 1, location 1, block index 2, location 2, length
+O1 count        4                   %number to create

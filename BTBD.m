@@ -3,6 +3,7 @@ clc; clear; close all;
 rng(42)
 
 %%% To Do
+% correct pairwise coffecients for linked block beads.
 % replace bond write/break with react if unlinking is desired.
 % add option to define origami initial configuration.
 % add option to set linker spring constnat.
@@ -15,49 +16,44 @@ rng(42)
 %%% Notation
 % r - position vector
 % r12 - vector pointing from position of bead 1 to bead 2
-% r_h - hydrodynamic radius
 % o, os, oi - origami, list of origamis, origami index
-% t, ts, ti - tether, list of tethers, tether index
 % b, bs, bi - block, list of blocks, block index
 % nvar - number of var
-% var.n or n_var - number of beads in var (e.g. t.n = beads in tether)
-% i - bead index within domains (tethers, blocks)
-% pi - bead (particle) index across entire origami (tethers then blocks)
+% var.n or n_var - number of beads in var
+% i - bead index within block
+% pi - bead (particle) index across entire origami
 % ui - (universal) bead index across entire system
 % connection - permenant (usually ssDNA scaffold) bond
 % linker - switchable (usually hybridizing DNA) bond
 
 %%% Input file
 % blocks: rigid bodies
-  % name - how to identify the block for adding patches and making origamis
+  % name - how to identify the block for patches and origamis
   % pattern - arangement of beads in the xy-plane (see block object)
   % height - number of beads in the z-direction
-% tethers: womrm-like-chains
-  % name - how to identify the tether for adding patches and making origamis
-  % length - number of beads in the chain
-% patches: locations on blocks used for linkers
-  % block type - name of block on which to place the patch
-  % theta - polar angle in xy-plane of patch location
-  % radius - distance (in r12_adj_block units) from z-axis of patch location
-  % z - height (in r12_eq_block units) along z-axis of patch location
-% origami: connected collection of blocks and tethers
-  % name - how to identify the origami for adding linkers
-  % block - names of block types to use
-  % conn - location for 5' and 3' connections
+% patches: locations on blocks used for bonded interactions
+  % name - how to identify the patch for connections and linkers
+  % block - name of block on which to place the patch
+  % theta - polar angle in xy-plane (in degrees) of patch location
+  % radius - distance from z-axis (in r12_adj_block units) of patch location
+  % z - height along z-axis (in r12_eq_block units) of patch location
+% origami: collection of connected blocks
+  % name - how to identify the origami for defining parameters and adding linkers
+  % block - names of block types (blocks are indexed in the given order)
+  % conn - permanent bond between indexed blocks at given location
   % count - number of origamis to create
-% linker: bonds that can form if beads get close enough
-  % origami type - name of origami on which to create the linker
-  % block indices - number, "A" for all blocks, or "B" for all but the last block
-  % conn - location for 5' and 3' connections
-% note: locations are defined by a flag (P or B, for patch or bead),
-  % followed by a hyphen, followed by either the patch name or the bead
-  % location, as given by the helix identifier (L/M/R for left/middle/right)
-  % and the z-location; this applies to locations given for origami
-  % connections and linkers.
-% note: linkers require two lines, one starting with the keywork "linker"
-  % that defines the location of the first side of the linker, and another
-  % directly afterwards that defines the location of the second side of the
-  % linker.
+% linker: breakable bond
+  % origami - name of origamis on which to create the linker
+  % block indices - index, or "A" for all blocks, or "B" for all but the last block
+  % location - where to place the ends of the linker
+% note: locations are defined by a flag (B or P, for bead or patch),
+  % followed by a hyphen, followed by a bead or patch identifier; for
+  % beads, the identifier is the helix (L/M/R for left/middle/right)
+  % directly followed by the height; for patches the identifier is the name
+  % of the patch.
+% note: linkers require two lines, one starting with the keyword "linker"
+  % that defines the location of the 5' end, and another line directly
+  % afterwards that defines the location of the 3' end.
 
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -65,12 +61,11 @@ rng(42)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% read input
-inFile = "./designs/control.txt";
-[os,linked,is_intra,o_types,conn_types,conn_r12_eqs] = read_input(inFile);
+inFile = "./designs/triarm.txt";
+[os,linked,o_types,conn_types,conn_r12_eqs] = read_input(inFile);
 
 %%% output parameters
-simsFold = "/Users/dduke/Files/block_tether/free_origami/lammps/active/";
-outputFold = "";
+outFold = "/Users/dduke/Files/block_tether/network/active/";
 nsim = 1;
 
 %%% simulation parameters
@@ -80,7 +75,7 @@ nstep_prod      = 1E7;      % steps         - if and how long to run producton
 dump_every      = 1E4;      % steps         - how often to write to output
 
 %%% computational parameters
-dt              = 0.08;     % ns            - time step
+dt              = 0.01;     % ns            - time step
 dbox            = 150;      % nm            - periodic boundary diameter
 verlet_skin     = 4;        % nm            - width of neighbor list skin (= r12_cut - r12_cut_WCA)
 neigh_every     = 1E1;      % steps         - how often to consider updating neighbor list
@@ -89,51 +84,47 @@ react_every     = 1E1;      % steps         - how often to check for linker hybr
 %%% physical parameters
 T               = 300;      % K             - temperature
 sigma           = 10;       % nm            - WCA distance parameter
-epsilon         = 1;        % kcal/mol      - WCA energy parameter
+epsilon         = 0.1;      % kcal/mol      - WCA energy parameter
 r12_eq_block    = 5;        % nm            - equilibrium block bead separation
 r12_adj_block   = 5;        % nm            - adjacent block helix separation
-r12_eq_tether   = 2.72;     % nm            - equilibrium tether bead separation
-k_x_tether      = 120;      % kcal/mol/nm2  - backbone spring constant
-Lp_tether       = 4;        % nm            - persistence length
-k_x_conn        = 1;        % kcal/mol/nm2  - connection spring constant
-r12_eq_linker   = 5;        % nm            - linker equilibrium distance
+k_x_conn        = 0.1;        % kcal/mol/nm2  - connection spring constant
+r12_eq_linker   = 3;        % nm            - linker equilibrium distance
 k_x_linker      = 1;        % kcal/mol/nm2  - linker spring constant
-U_cut_linker    = 10;       % kcal          - linker formation energy cutoff
 
 %%% create parameters class
 p = parameters(nstep_eq,shrink_ratio,nstep_prod,dump_every,...
                dt,dbox,verlet_skin,neigh_every,react_every,...
-               T,sigma,epsilon,r12_eq_block,r12_adj_block,r12_eq_tether,k_x_tether,Lp_tether,...
-               k_x_conn,r12_eq_linker,k_x_linker,U_cut_linker);
+               T,sigma,epsilon,r12_eq_block,r12_adj_block,...
+               k_x_conn,r12_eq_linker,k_x_linker);
 
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Write LAMMPS Files %%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%% output folder 
-mkdir(simsFold)
+%%% create output folder 
+mkdir(outFold)
 
 %%% loop over simulations
 for i = 1:nsim
     if nsim == 1
-        outFold = simsFold;
+        simFold = outFold;
     else
-        outFold = simsFold + "sim" + ars.fstring(i,2,0,"R","zero") + "/";
-        mkdir(outFold)
+        simFold = outFold + "sim" + ars.fstring(i,2,0,"R","zero") + "/";
+        mkdir(simFold)
     end
 
     %%% initialize positions
     os = place_origami(os,p);
 
     %%% write lammps simulation geometry file
-    geoFile = outFold + "geometry.in";
-    geoVisFile = outFold + "geometry_vis.in";
-    [nbond,nangle] = compose_geo(geoFile,geoVisFile,os,linked,o_types,conn_types,dbox);
+    geoFile = simFold + "geometry.in";
+    geoVisFile = simFold + "geometry_vis.in";
+    compose_geo(geoFile,geoVisFile,os,linked,o_types,conn_types,dbox);
     
     %%% write lammps input file
-    inputFile = outFold + "lammps.in";
-    write_input(inputFile,outputFold,p,is_intra,nbond,nangle,conn_r12_eqs)
+    inputFile = simFold + "lammps.in";
+    write_input(inputFile,p,linked,conn_types,conn_r12_eqs)
 end
 
 
@@ -190,7 +181,7 @@ end
 
 
 %%% create linkers by updating linked matrix
-function [linked,is_intra] = linker(oi1s,bi1s,loc1,oi2s,bi2s,loc2,os,linked,is_intra)
+function linked = linker(oi1s,bi1s,loc1,oi2s,bi2s,loc2,os,linked)
 
     %%% meaning of linked matrix values
     % 0 - not linked to anything
@@ -200,12 +191,10 @@ function [linked,is_intra] = linker(oi1s,bi1s,loc1,oi2s,bi2s,loc2,os,linked,is_i
     %%% identify if linker(s) are intra or inter
     if isequal(oi1s,oi2s)
         interlink = false;
-        nlinker = length(is_intra);
-        is_intra = [is_intra,ones(1,length(oi1s))];
+        linker_index = ars.myMax(linked)/2;
     else
         interlink = true;
-        nlinker = length(is_intra) + 1;
-        is_intra = [is_intra,0];
+        linker_index = ars.myMax(linked)/2 + 1;
     end
 
     %%% set values in linker array
@@ -213,7 +202,7 @@ function [linked,is_intra] = linker(oi1s,bi1s,loc1,oi2s,bi2s,loc2,os,linked,is_i
         for oi2 = oi2s
             if oi2 == oi1 || interlink == true
                 if interlink == false
-                    nlinker = nlinker + 1;
+                    linker_index = linker_index + 1;
                 end
                 for j1 = 1:length(bi1s)
                     for j2 = 1:length(bi2s)
@@ -221,10 +210,10 @@ function [linked,is_intra] = linker(oi1s,bi1s,loc1,oi2s,bi2s,loc2,os,linked,is_i
                         bi2 = bi2s(j2);
                         i1 = os(oi1).bs(bi1).interpret_loc(loc1);
                         i2 = os(oi2).bs(bi2).interpret_loc(loc2);
-                        pi1 = os(oi1).get_pi(2,bi1,i1);
-                        pi2 = os(oi2).get_pi(2,bi2,i2);
-                        linked(oi1,pi1) = nlinker*2-1;
-                        linked(oi2,pi2) = nlinker*2;
+                        pi1 = os(oi1).get_pi(bi1,i1);
+                        pi2 = os(oi2).get_pi(bi2,i2);
+                        linked(oi1,pi1) = linker_index*2-1;
+                        linked(oi2,pi2) = linker_index*2;
                     end
                 end
             end
@@ -253,7 +242,7 @@ end
 
 
 %%% read input file and create corresponding origami objects
-function [os,linked,is_intra,o_types,conn_types,conn_r12_eqs] = read_input(inFile)
+function [os,linked,o_types,conn_types,conn_r12_eqs] = read_input(inFile)
 
     %%% open file
     f = fopen(inFile, 'r');
@@ -262,9 +251,8 @@ function [os,linked,is_intra,o_types,conn_types,conn_r12_eqs] = read_input(inFil
     end
 
     %%% initialize dictionaries
-    tethers = dictionary();
     blocks = dictionary();
-    o_tethers = dictionary();
+    origamis = dictionary();
     o_blocks = dictionary();
     o_conns = dictionary();
     o_counts = dictionary();
@@ -295,9 +283,9 @@ function [os,linked,is_intra,o_types,conn_types,conn_r12_eqs] = read_input(inFil
         if linker_flag == true
             linker_flag = false;
             linker_otypes(2,nlinker) = extract{1};
-            if extract{2} == "A"
+            if extract{2} == 'A'
                 linker_bis(2,nlinker) = 0;
-            elseif extract{2} == "B"
+            elseif extract{2} == 'B'
                 linker_bis(2,nlinker) = -1;
             elseif ~isnan(str2double(extract{2}))
                 linker_bis(2,nlinker) = str2double(extract{2});
@@ -307,14 +295,12 @@ function [os,linked,is_intra,o_types,conn_types,conn_r12_eqs] = read_input(inFil
             linker_locs{2,nlinker} = extract{3};
         else
             switch extract{1}
-                case 'tether'
-                    tethers(extract{2}) = tether(str2double(extract{3}));
                 case 'block'
                     blocks(extract{2}) = block(convertCharsToStrings(extract{3}),str2double(extract{4}));
                 case 'patch'
                     blocks(extract{3}) = blocks(extract{3}).add_patch(extract{2},str2double(extract{4}),str2double(extract{5}),str2double(extract{6}));
                 case 'origami'
-                    o_tethers{extract{2}} = tether.empty;
+                    origamis(extract{2}) = origami();
                     o_blocks{extract{2}} = block.empty;
                     o_conns{extract{2}} = cell(0);
                     o_counts(extract{2}) = 0;
@@ -322,9 +308,9 @@ function [os,linked,is_intra,o_types,conn_types,conn_r12_eqs] = read_input(inFil
                     linker_flag = true;
                     nlinker = nlinker + 1;
                     linker_otypes(1,nlinker) = extract{2};
-                    if extract{3} == "A"
+                    if extract{3} == 'A'
                         linker_bis(1,nlinker) = 0;
-                    elseif extract{3} == "B"
+                    elseif extract{3} == 'B'
                         linker_bis(1,nlinker) = -1;
                     elseif ~isnan(str2double(extract{3}))
                         linker_bis(1,nlinker) = str2double(extract{3});
@@ -335,12 +321,6 @@ function [os,linked,is_intra,o_types,conn_types,conn_r12_eqs] = read_input(inFil
                 otherwise
                     if isKey(o_counts,extract{1})
                         switch extract{2}
-                            case 'tether'
-                                tether_list = tether.empty;
-                                for ti = 1:length(extract)-2
-                                    tether_list(ti) = tethers(extract{ti+2});
-                                end
-                                o_tethers{extract{1}} = tether_list;
                             case 'blocks'
                                 block_list = block.empty;
                                 for bi = 1:length(extract)-2
@@ -366,12 +346,12 @@ function [os,linked,is_intra,o_types,conn_types,conn_r12_eqs] = read_input(inFil
     %%% create type array
     o_counts_values = o_counts.values();
     o_types = zeros(1,sum(o_counts_values));
-    type_index = 1;
+    o_type = 1;
     for oi = 1:length(o_types)
-        if oi > sum(o_counts_values(1:type_index))
-            type_index = type_index + 1;
+        if oi > sum(o_counts_values(1:o_type))
+            o_type = o_type + 1;
         end
-        o_types(oi) = type_index;
+        o_types(oi) = o_type;
     end
 
     %%% create origamis
@@ -379,12 +359,11 @@ function [os,linked,is_intra,o_types,conn_types,conn_r12_eqs] = read_input(inFil
     o_keys = keys(o_counts)';
     for o_name = o_keys
         o_indices{o_name} = length(os)+1:length(os)+o_counts(o_name);
-        os(o_indices{o_name}) = origami( o_tethers{o_name}, o_blocks{o_name}, o_conns{o_name});
+        os(o_indices{o_name}) = origami( o_blocks{o_name}, o_conns{o_name});
     end
 
     %%% create linkers
     linked = zeros(length(os),max([os.n]));
-    is_intra = zeros(0);
     for li = 1:nlinker
         %%% starting side of the linker
         oi1s = o_indices{linker_otypes(1,li)};
@@ -407,13 +386,11 @@ function [os,linked,is_intra,o_types,conn_types,conn_r12_eqs] = read_input(inFil
         end
         loc2 = linker_locs{2,li};
         %%% create linker
-        [linked,is_intra] = ...
-        linker(oi1s,bi1s,loc1, ...
-               oi2s,bi2s,loc2,os,linked,is_intra);
+        linked = linker(oi1s,bi1s,loc1,oi2s,bi2s,loc2,os,linked);
     end
 
     %%% connections
-    no_type = length(o_counts);
+    no_type = numEntries(o_counts);
     max_nconn = 0;
     for o_name = o_keys
         nconn = length(o_conns{o_name});
@@ -422,13 +399,13 @@ function [os,linked,is_intra,o_types,conn_types,conn_r12_eqs] = read_input(inFil
     conn_types = zeros(no_type,max_nconn);
     conn_r12_eqs = zeros(no_type,max_nconn);
     conn_type_count = 0;
-    i = 0;
+    o_type = 0;
     for o_name = o_keys
-        i = i+1;
+        o_type = o_type+1;
         for j = 1:length(o_conns{o_name})
             conn_type_count = conn_type_count+1;
-            conn_types(i,j) = conn_type_count;
-            conn_r12_eqs(i,j) = o_conns{o_name}{j}{5};
+            conn_types(o_type,j) = conn_type_count;
+            conn_r12_eqs(o_type,j) = o_conns{o_name}{j}{5};
         end
     end
 end
@@ -439,30 +416,24 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% write lammps geometry file
-function [nbond,nangle] = compose_geo(geoFile,geoVisFile,os,linked,o_types,conn_types,dbox)
+function compose_geo(geoFile,geoVisFile,os,linked,o_types,conn_types,dbox)
 
     %%% grouping atoms
     % atom ID - universal bead index
-    % molecule tag - universal domain index
-    % atom type - tether (1), unlinked block (2), interlinked block (>2), intralinked block (end)
-    % bond type - tether backbone (1), linker (2), connection (>2)
+    % molecule tag - universal block index
+    % atom type - unlinked bead (1), unlinked patch (2), linker bead/patch (>2)
+    % bond type - linker (1), connection (>1)
 
     %%% calculate index mapping
     [get_oi,get_pi,get_ui] = map_indices(os);
+    nlinker = ars.myMax(linked)/2;
     
     %%% unwrap from pbc
     for oi = 1:length(os)
-        for ti = 1:length(os(oi).ts)
-            r_ref = ars.calcCOM(os(oi).ts(ti).r,dbox);
-            for i = 1:os(oi).ts(ti).n
-                pi = os(oi).get_pi(1,ti,i);
-                os(oi).r(:,pi) = r_ref + ars.applyPBC(os(oi).ts(ti).r(:,i) - r_ref, dbox);
-            end
-        end
         for bi = 1:length(os(oi).bs)
             r_ref = ars.calcCOM(os(oi).bs(bi).r,dbox);
             for i = 1:os(oi).bs(bi).n
-                pi = os(oi).get_pi(2,bi,i);
+                pi = os(oi).get_pi(bi,i);
                 os(oi).r(:,pi) = r_ref + ars.applyPBC(os(oi).bs(bi).r(:,i) - r_ref, dbox);
             end
         end
@@ -471,33 +442,33 @@ function [nbond,nangle] = compose_geo(geoFile,geoVisFile,os,linked,o_types,conn_
     %%% get count for objects
     natom = sum([os.n]);
     nbond = 0;
-    nangle = 0;
     for oi = 1:length(os)
-        n_tether = sum([os(oi).ts.n]);
-        nbond = nbond + n_tether - length(os(oi).ts) + length(os(oi).cs);
-        nangle = nangle + n_tether - 2*length(os(oi).ts);
+        nbond = nbond + length(os(oi).cs);
     end
 
     %%% compile atom info
     atoms = zeros(5,natom);
-    dom_count = 0;
+    linker_isPatch = zeros(nlinker);
+    block_count = 0;
     for ui = 1:natom
         oi = get_oi(ui);
         pi = get_pi(ui);
-        if pi == 1 || os(oi).get_dom(pi) ~= os(oi).get_dom(pi-1) || os(oi).get_domi(pi) ~= os(oi).get_domi(pi-1)
-            dom_count = dom_count + 1;
+        if os(oi).get_i(pi) == 1
+            block_count = block_count + 1;
         end
-        atoms(1,ui) = dom_count;
-        if os(oi).get_dom(pi) == 1
-            atoms(2,ui) = 1;
-        else
-            if linked(oi,pi) > 0
-                atoms(2,ui) = linked(oi,pi) + 3;
-            elseif os(oi).get_i(pi) > os(oi).bs(os(oi).get_domi(pi)).n - os(oi).bs(os(oi).get_domi(pi)).npatch
-                atoms(2,ui) = 3;
-            else
-                atoms(2,ui) = 2;
+        atoms(1,ui) = block_count;
+        if linked(oi,pi) > 0
+            atoms(2,ui) = linked(oi,pi) + 2;
+            linker_index = ceil(linked(oi,pi)/2);
+            if linker_isPatch(linker_index) == 0
+                if ~os(oi).is_real(pi)
+                    linker_isPatch(linker_index) = 1;
+                end
             end
+        elseif os(oi).get_i(pi) > os(oi).bs(os(oi).get_bi(pi)).n_r
+            atoms(2,ui) = 2;
+        else
+            atoms(2,ui) = 1;
         end
         atoms(3:5,ui) = os(oi).r(:,pi);
     end
@@ -507,24 +478,11 @@ function [nbond,nangle] = compose_geo(geoFile,geoVisFile,os,linked,o_types,conn_
     if nbond > 0
         bond_count = 0;
         for oi = 1:length(os)
-            if ~isempty(os(oi).ts)
-                for pi = 1:sum([os(oi).ts.n])
-                    ui = get_ui(oi,pi);
-                    if pi+1 <= sum([os(oi).ts.n])
-                        if os(oi).get_domi(pi+1) == os(oi).get_domi(pi)
-                            bond_count = bond_count + 1;
-                            bonds(1,bond_count) = 1;
-                            bonds(2,bond_count) = ui+0;
-                            bonds(3,bond_count) = ui+1;
-                        end
-                    end
-                end
-            end
             for ci = 1:length(os(oi).cs)
                 bond_count = bond_count + 1;
-                ui1 = get_ui( oi, os(oi).get_pi( os(oi).cs(ci).doms(1), os(oi).cs(ci).domis(1), os(oi).cs(ci).is(1) ) );
-                ui2 = get_ui( oi, os(oi).get_pi( os(oi).cs(ci).doms(2), os(oi).cs(ci).domis(2), os(oi).cs(ci).is(2) ) );
-                bond_type = conn_types(o_types(oi),ci) + 2;
+                ui1 = get_ui( oi, os(oi).get_pi( os(oi).cs(ci).bis(1), os(oi).cs(ci).is(1) ) );
+                ui2 = get_ui( oi, os(oi).get_pi( os(oi).cs(ci).bis(2), os(oi).cs(ci).is(2) ) );
+                bond_type = conn_types(o_types(oi),ci) + 1;
                 bonds(1,bond_count) = bond_type;
                 bonds(2,bond_count) = ui1;
                 bonds(3,bond_count) = ui2;
@@ -532,72 +490,55 @@ function [nbond,nangle] = compose_geo(geoFile,geoVisFile,os,linked,o_types,conn_
         end
     end
 
-    %%% compile angles info
-    angles = zeros(4,nangle);
-    if nangle > 0
-        angle_count = 0;
-        for oi = 1:length(os)
-            for pi = 1:sum([os(oi).ts.n])
-                ui = get_ui(oi,pi);
-                if pi+2 <= sum([os(oi).ts.n])
-                    if os(oi).get_domi(pi+2) == os(oi).get_domi(pi)
-                        angle_count = angle_count + 1;
-                        angles(1,angle_count) = 1;
-                        angles(2,angle_count) = ui+0;
-                        angles(3,angle_count) = ui+1;
-                        angles(4,angle_count) = ui+2;
-                    end
-                end
-            end
-        end
-    end
+    %%% compile angle info
+    angles = zeros(4,0);
 
     %%% compile mass info
-    natomType = ars.myMax(linked) + 3;
+    natomType = ars.myMax(linked) + 2;
     masses = ones(1,natomType);
+    masses(2) = 0.01;
     for i = 3:natomType
-        masses(i) = 0.1;
+        linker_index = ceil((i-2)/2);
+        if linker_isPatch(linker_index) == 1
+            masses(i) = 0.01;
+        end
     end
 
     %%% write simulation geometry file
     ars.writeGeo(geoFile,dbox,atoms,bonds,angles,masses=masses)
 
-    %%% initialize visualization arrays
-    atoms_vis = atoms;
-    bonds_vis = bonds;
-    angles_vis = zeros(4,0);
-
     %%% compile atom info for visualization
-    ntype = max(o_types);
+    atoms_vis = atoms;
+    no_type = max(o_types);
     for ui = 1:natom
         oi = get_oi(ui);
         pi = get_pi(ui);
         atoms_vis(1,ui) = oi;
         if linked(oi,pi) > 0
-            atoms_vis(2,ui) = ntype + 1 + floor((linked(oi,pi)+1)/2);
-        elseif os(oi).get_i(pi) > os(oi).bs(os(oi).get_domi(pi)).n - os(oi).bs(os(oi).get_domi(pi)).npatch
-            atoms_vis(2,ui) = ntype + 1;
+            atoms_vis(2,ui) = no_type + 1 + floor((linked(oi,pi)+1)/2);
+        elseif os(oi).get_i(pi) > os(oi).bs(os(oi).get_bi(pi)).n_r
+            atoms_vis(2,ui) = no_type + 1;
         else
             atoms_vis(2,ui) = o_types(oi);
         end
     end
 
     %%% write visualization geometry file
-    ars.writeGeo(geoVisFile,dbox,atoms_vis,bonds_vis,angles_vis)
+    ars.writeGeo(geoVisFile,dbox,atoms_vis,bonds,angles)
 end
 
 
 %%% write lammps input file
-function write_input(inputFile,outputFold,p,is_intra,nbond,nangle,conn_r12_eqs)
-
-    %%% create linker list
-    linkers = 1:length(is_intra);
+function write_input(inputFile,p,linked,conn_types,conn_r12_eqs)
 
     %%% formatting
-    nlinker = length(linkers);
-    ntype = nlinker*2+3;
+    nlinker = ars.myMax(linked)/2;
+    natomType = 2+nlinker*2;
     len_nlinker = floor(log10(nlinker))+1;
-    len_ntype = floor(log10(ntype))+1;
+    len_natomType = floor(log10(natomType))+1;
+
+    %%% calculations
+    comm_cutoff = max([p.r12_cut_WCA, p.r12_eq_linker]);
 
     %%% open file
     f = fopen(inputFile,'w');
@@ -609,7 +550,7 @@ function write_input(inputFile,outputFold,p,is_intra,nbond,nangle,conn_r12_eqs)
 
     %%% basic setup
     fprintf(f,strcat(...
-        "## Initialization\n",...
+        "## Geometry\n",...
         "units           nano\n",...
         "dimension       3\n",...
         "boundary        p p p\n",...
@@ -620,82 +561,61 @@ function write_input(inputFile,outputFold,p,is_intra,nbond,nangle,conn_r12_eqs)
 
     %%% neighbor list
     fprintf(f,strcat(...
-        "## System definition\n",...
+        "## Parameters\n",...
         "neighbor        ", ars.fstring(p.verlet_skin,0,2), " bin\n",...
-        "neigh_modify    every ", num2str(p.neigh_every), "\n"));
+        "neigh_modify    every ", num2str(p.neigh_every), "\n",...
+        "neigh_modify    exclude molecule/intra all\n"));
 
-    %%% initialize pairwise interactions
+    %%% pairwise interactions
     fprintf(f,strcat(...
-        "pair_style      hybrid/overlay lj/cut ", ars.fstring(p.r12_cut_WCA,0,2), " zero ", ars.fstring(p.r12_cut_linker,0,2), "\n",...
-        "pair_coeff      * * zero\n"));
-
-    %%% excluded volume
-    fprintf(f,strcat(...
-        "pair_coeff      1*2 1*2 lj/cut ", ars.fstring(p.epsilon,0,2), " ", ars.fstring(p.sigma,0,2), "\n",...
+        "pair_style      hybrid/overlay lj/cut ", ars.fstring(p.r12_cut_WCA,0,2), " zero ", ars.fstring(comm_cutoff,0,2), "\n",...
+        "pair_coeff      * * zero\n",...
+        "pair_coeff      1 1 lj/cut ", ars.fstring(p.epsilon,0,2), " ", ars.fstring(p.sigma,0,2), "\n",...
         "pair_modify     pair lj/cut shift yes\n"));
 
     %%% bonds
-    if nbond > 0
     fprintf(f,strcat(...
         "bond_style      harmonic\n",...
-        "bond_coeff      1 ", ars.fstring(p.k_x_tether/2,0,2), " ", ars.fstring(p.r12_eq_tether,0,2), "\n",...
-        "bond_coeff      2 ", ars.fstring(p.k_x_linker/2,0,2), " ", ars.fstring(p.r12_eq_linker,0,2), "\n"));
-    conn_count = 0;
-    for i = 1:size(conn_r12_eqs,1)
-        for j = 1:size(conn_r12_eqs,2)
-            conn_count = conn_count + 1;
+        "bond_coeff      1 ", ars.fstring(p.k_x_linker/2,0,2), " ", ars.fstring(p.r12_eq_linker,0,2), "\n"));
+    no_type = size(conn_types,1);
+    for i = 1:no_type
+        nconn_type = nnz(conn_types(i,:));
+        for j = 1:nconn_type
             fprintf(f,strcat(...
-                "bond_coeff      ", num2str(conn_count+2), " ", ars.fstring(p.k_x_conn/2,0,2), " ", ars.fstring(conn_r12_eqs(i,j),0,2), "\n"));
+                "bond_coeff      ", num2str(conn_types(i,j)+1), " ", ars.fstring(p.k_x_conn/2,0,2), " ", ars.fstring(conn_r12_eqs(i,j),0,2), "\n"));
         end
-    end
-    end
-
-    %%% tether angles
-    if nangle > 0
-    fprintf(f,strcat(...
-        "angle_style     harmonic\n",...
-        "angle_coeff     1 ", ars.fstring(p.k_theta,0,2), " 180\n"));
     end
     
     %%% define groups
-    fprintf(f,strcat(...
-        "group           tether type 1\n",...
-        "group           block type 2:", num2str(ntype), "\n",...
-        "group           patch type 3:", num2str(ntype), "\n",...
-        "neigh_modify    exclude molecule/intra block\n\n"));
+    if nlinker > 0
+        fprintf(f,strcat(...
+            "group           linked type 3:", num2str(natomType), "\n"));
+    end
+    fprintf(f,"\n");
 
     %%% setup simulation
     fprintf(f,strcat(...
-        "## Simulation Setup\n",...
-        "fix             tstat1 block rigid/nve molecule langevin ", num2str(p.T), " ", num2str(p.T), " 0.049 37\n",...
-        "fix             tstat2 tether langevin ", num2str(p.T), " ", num2str(p.T), " 0.049 37\n",...
-        "fix             tstat3 tether nve\n",...
-        "thermo_style    custom step temp pe ke etotal\n",...
+        "## Thermostat\n",...
+        "fix             tstat all rigid/nve molecule langevin ", num2str(p.T), " ", num2str(p.T), " 0.049 37\n",...
         "thermo          ", num2str(p.dump_every), "\n\n"));
 
-    %%% equilibration
+    %%% relaxation
     if p.nstep_eq > 0
-    fprintf(f,strcat(...
-        "## Equilibration Settings\n",...
-        "timestep        ", num2str(p.dt/10), "\n"));
+        fprintf(f,strcat(...
+            "## Relaxation\n",...
+            "timestep        ", num2str(p.dt/10), "\n"));
     if p.shrink_ratio ~= 1
-    fprintf(f,strcat(...
-        "fix             deformation all deform 1 &\n",...
-        "                x final ", ars.fstring(-p.dbox/2*p.shrink_ratio,0,2), " ", ars.fstring(p.dbox/2*p.shrink_ratio,0,2), " &\n",...
-        "                y final ", ars.fstring(-p.dbox/2*p.shrink_ratio,0,2), " ", ars.fstring(p.dbox/2*p.shrink_ratio,0,2), " &\n",...
-        "                z final ", ars.fstring(-p.dbox/2*p.shrink_ratio,0,2), " ", ars.fstring(p.dbox/2*p.shrink_ratio,0,2), "\n"));
+        fprintf(f,strcat(...
+            "fix             deformation all deform 1 &\n",...
+            "                x final ", ars.fstring(-p.dbox/2*p.shrink_ratio,0,2), " ", ars.fstring(p.dbox/2*p.shrink_ratio,0,2), " &\n",...
+            "                y final ", ars.fstring(-p.dbox/2*p.shrink_ratio,0,2), " ", ars.fstring(p.dbox/2*p.shrink_ratio,0,2), " &\n",...
+            "                z final ", ars.fstring(-p.dbox/2*p.shrink_ratio,0,2), " ", ars.fstring(p.dbox/2*p.shrink_ratio,0,2), "\n"));
     end
-    fprintf(f,"\n");
-    end
-    
-    %%% run equilibration
-    if p.nstep_eq > 0
     fprintf(f,strcat(...
-        "## Equilibration Steps\n",...
         "run             ", num2str(p.nstep_eq), "\n"));
     if p.shrink_ratio ~= 1
-    fprintf(f,strcat(...
-        "unfix           deformation\n"));
+        fprintf(f,strcat(...
+            "unfix           deformation\n"));
     end
     fprintf(f,strcat(...
         "reset_timestep  0\n\n"));
@@ -703,38 +623,29 @@ function write_input(inputFile,outputFold,p,is_intra,nbond,nangle,conn_r12_eqs)
 
     %%% production settings
     if p.nstep_prod > 0
-    fprintf(f,strcat(...
-        "## Production Settings\n",...
-        "timestep        ", num2str(p.dt), "\n",...
-        "dump            dump1 all custom ", num2str(p.dump_every), " ", outputFold, "trajectory.dat id mol xs ys zs\n",...
-        "dump_modify     dump1 sort id\n",...
-        "compute         comp1 all property/local btype batom1 batom2\n",...
-        "dump            dump2 all local ", num2str(p.dump_every), " ", outputFold, "dump_bonds.txt index c_comp1[1] c_comp1[2] c_comp1[3]\n"));
-    fprintf(f,"\n");
+        fprintf(f,strcat(...
+            "## Updates\n",...
+            "dump            dump1 all custom ", num2str(p.dump_every), " trajectory.dat id mol xs ys zs\n",...
+            "dump_modify     dump1 sort id\n",...
+            "compute         comp1 all property/local btype batom1 batom2\n",...
+            "dump            dump2 all local ", num2str(p.dump_every), " dump_bonds.txt index c_comp1[1] c_comp1[2] c_comp1[3]\n\n"));
     end
 
-    %%% run production
+    %%% define linkers
+    if nlinker > 0
+        fprintf(f,"## Reactions\n");
+        for li = 1:nlinker
+            fixName = strcat("linker",ars.fstring(li,len_nlinker,0,"L"));
+            add_bond_create(f,fixName,li,p.r12_eq_linker,p.react_every,len_natomType);
+        end
+        fprintf(f,"\n");
+    end
+
     if p.nstep_prod > 0
-    fprintf(f,strcat(...
-        "## Production Steps\n"));
-        for li = linkers
-            fixName = strcat("linker",ars.fstring(li,len_nlinker,0,"L"),"_create");
-            add_bond_create(f,fixName,li,p.r12_eq_linker,p.react_every,len_ntype);
-        end
-        if ~isempty(linkers)
         fprintf(f,strcat(...
-            "fix             linker_break patch bond/break ", num2str(p.react_every), " 3 ", ars.fstring(p.r12_cut_linker,0,2), "\n"));
-        end
-        fprintf(f,strcat(...
-        "run             ", num2str(p.nstep_prod), "\n"));
-        for li = linkers
-            fixName = strcat("linker",ars.fstring(li,len_nlinker,0,"L"),"_create");
-            fprintf(f,strcat("unfix           ",fixName,"\n"));
-        end
-        if ~isempty(linkers)
-        fprintf(f,strcat(...
-            "unfix           linker_break\n"));
-        end
+            "## Production\n",...
+            "timestep        ", num2str(p.dt), "\n",...
+            "run             ", num2str(p.nstep_prod), "\n"));
     end
     
     %%% finalize and close file
@@ -744,11 +655,11 @@ end
 
 
 %%% write fix bond create command
-function add_bond_create(f,fixName,li,r12_cut,react_every,len_ntype)
+function add_bond_create(f,fixName,li,r12_cut,react_every,len_natomType)
     fprintf(f,strcat(...
-        "fix             ", fixName, " patch bond/create ", num2str(react_every), " ",...
-        ars.fstring(li*2+2,len_ntype,0,"L"), " ", ars.fstring(li*2+3,len_ntype,0,"L"), " ",...
-        ars.fstring(r12_cut,0,2), " 2 ",...
-        "iparam 1 ", ars.fstring(li*2+2,len_ntype,0,"L"), " ",...
-        "jparam 1 ", ars.fstring(li*2+3,len_ntype,0,"L"), "\n"));
+        "fix             ", fixName, " linked bond/create ", num2str(react_every), " ",...
+        ars.fstring(li*2+1,len_natomType,0,"L"), " ", ars.fstring(li*2+2,len_natomType,0,"L"), " ",...
+        ars.fstring(r12_cut,0,2), " 1 ",...
+        "iparam 1 ", ars.fstring(li*2+1,len_natomType,0,"L"), " ",...
+        "jparam 1 ", ars.fstring(li*2+2,len_natomType,0,"L"), "\n"));
 end
