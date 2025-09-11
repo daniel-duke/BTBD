@@ -1,41 +1,41 @@
 %%% block class for BTBD
 classdef block
     properties
-        pattern     % helix locations in block xy-plane
-        hiHollow    % helix indices of hollow helices
-        hiL         % helix index for left connections
-        hiR         % helix index for right connections
-        hiM         % helix index for middle connections
-        patches     % names of patches
-        npatch      % number of patches
-        r12_pat_pol % patch internal positions (theta,radius,z)
-        r12_cart    % internal positions of all beads (x,y,z)
-        n_xy        % number of helices
-        n_z         % number of beads in each helix
-        n_r         % number of real beads
-        n           % number of beads in total
-        r           % bead positions
+        pattern         % helix locations in block xy-plane
+        hiH             % helix indices of hollow helices
+        hiL             % helix index for left connections
+        hiR             % helix index for right connections
+        hiM             % helix index for middle connections
+        nhelix          % number of helices
+        n_helix         % number of beads in each helix
+        npatch          % number of patches
+        patches         % names of patches
+        r12_pat_pol     % patch internal positions (theta,radius,z)
+        r12_cart        % internal positions of all beads (x,y,z)
+        n_real          % number of real (structural) beads
+        n               % number of total beads
+        r               % bead positions
+        get_hi          % map ib to hi
+        get_zi          % map ib to zi
+        get_ib          % map hi and zi to ib
+
     end
 
     methods
         %%% constructor
-        function b = block(pattern_label,n_z)
+        function b = block(pattern_label,n_helix)
             if nargin > 0
-                [pattern,hiHollow,hiL,hiR,hiM] = block.setpat(pattern_label);
-                b.pattern = pattern;
-                b.hiHollow = hiHollow;
-                b.hiL = hiL;
-                b.hiR = hiR;
-                b.hiM = hiM;
-                b.patches = {};
+                [b.pattern,b.hiH,b.hiL,b.hiR,b.hiM] = block.setpat(pattern_label);
+                b.nhelix = size(b.pattern,2);
+                b.n_helix = n_helix;
                 b.npatch = 0;
+                b.patches = {};
                 b.r12_pat_pol = [];
                 b.r12_cart = [];
-                b.n_xy = size(b.pattern,2);
-                b.n_z = n_z;
-                b.n_r = size(b.pattern,2)*min(n_z,2) + (size(b.pattern,2)-length(b.hiHollow))*max(n_z-2,0);
-                b.n = b.n_r;
+                b.n_real = b.calc_nbead;
+                b.n = b.n_real;
                 b.r = zeros(3,b.n);
+                [b.get_hi,b.get_zi,b.get_ib] = map_indices(b);
             end
         end
 
@@ -55,26 +55,42 @@ classdef block
         end
 
 
+        %%% calcualte number of structural beads in block
+        function nbead = calc_nbead(b)
+            nbead = size(b.pattern,2)*min(b.n_helix,2) + (size(b.pattern,2)-length(b.hiH))*max(b.n_helix-2,0);
+        end
+
+
         %%% get block index from geometrical indices
-        function index = get_i(b,hi,zi)
-            if zi ~= 1 && zi ~= b.n_z && any(b.hiHollow==hi)
-                index = 0;
-            else
-                index = size(b.pattern,2)*min(zi-1,1) + ...
-                        (size(b.pattern,2)-length(b.hiHollow))*max(zi-2,0) + hi;
-                if zi ~= 1 && zi ~= b.n_z
-                    index = index - sum(b.hiHollow<hi);
+        function [get_hi,get_zi,get_ib] = map_indices(b)
+            get_hi = zeros(1,b.n);
+            get_zi = zeros(1,b.n);
+            get_ib = zeros(b.nhelix,b.n_helix);
+            for hi = 1:b.nhelix
+                for zi = 1:b.n_helix
+                    if zi ~= 1 && zi ~= b.n_helix && any(b.hiH==hi)
+                        ib = 0;
+                    else
+                        ib = size(b.pattern,2)*min(zi-1,1) + ...
+                                (size(b.pattern,2)-length(b.hiH))*max(zi-2,0) + hi;
+                        if zi ~= 1 && zi ~= b.n_helix
+                            ib = ib - sum(b.hiH<hi);
+                        end
+                    end
+                    get_hi(ib) = hi;
+                    get_zi(ib) = zi;
+                    get_ib(hi,zi) = ib;
                 end
             end
         end
 
 
         %%% get block index from location
-        function index = interpret_loc(b,loc)
+        function ib = interpret_loc(b,loc)
             if loc(1) == 'P'
                 patch_index = find(strcmp(b.patches, loc(3:end)));
                 if ~isempty(patch_index)
-                    index = b.n-b.npatch+patch_index;
+                    ib = b.n-b.npatch+patch_index;
                 else
                     error("Unknown patch type: " + loc(3:end) + ".")
                 end
@@ -89,7 +105,7 @@ classdef block
                     error("Unknown helix type: " + loc(3) + ".")
                 end
                 zi = str2double(loc(4:end));
-                index = b.get_i(hi,zi);
+                ib = b.get_ib(hi,zi);
             else
                 error("Unknown connection type: " + loc(1) + ".")
             end
@@ -98,7 +114,7 @@ classdef block
 
         %%% initialize block with bead indexed by i_conn connected to
         %%% r_source at distance r12_conn_mag
-        function [b,overlap,r_other] = init(b,p,i_conn,r_source,r12_conn_mag,r_other)
+        function [b,failed,r_other] = init_positions(b,p,i_conn,r_source,r12_conn_mag,r_other)
             max_attempts = 100;
 
             %%% get position of connected bead
@@ -110,30 +126,28 @@ classdef block
 
                 %%% check block attempts
                 if attempts == max_attempts
-                    break
+                    failed = true;
+                    return
                 end
 
                 %%% real bead internal positions
-                for zi = 1:b.n_z
-                    for hi = 1:b.n_xy
-                        index = b.get_i(hi,zi);
-                        if index ~= 0
-                            r12 = zeros(3,1);
-                            r12(1:2) = p.r12_adj_block*(b.pattern(:,hi)-b.pattern(:,1));
-                            r12(3) = p.r12_eq_block*(zi-1);
-                            b.r12_cart(:,index) = r12;
-                        end
-                    end
+                for ib = 1:b.n_real
+                    hi = b.get_hi(ib);
+                    zi = b.get_zi(ib);
+                    r12 = zeros(3,1);
+                    r12(1:2) = p.r12_helix*(b.pattern(:,hi)-b.pattern(:,1));
+                    r12(3) = p.r12_bead*(zi-1);
+                    b.r12_cart(:,ib) = r12;
                 end
     
                 %%% patch bead internal positions
-                for i = 1:b.npatch
-                    index = b.n_r+i;
-                    theta = b.r12_pat_pol(1,i);
-                    radius = b.r12_pat_pol(2,i);
-                    z = b.r12_pat_pol(3,i);
-                    [x,y,z] = pol2cart(deg2rad(theta),radius*p.r12_adj_block,z*p.r12_eq_block);
-                    b.r12_cart(:,index) = [x;y;z];
+                for pi = 1:b.npatch
+                    ib = b.n-b.npatch+pi;
+                    theta = b.r12_pat_pol(1,pi);
+                    radius = b.r12_pat_pol(2,pi);
+                    z = b.r12_pat_pol(3,pi);
+                    [x,y,z] = pol2cart(deg2rad(theta),radius*p.r12_helix,z*p.r12_bead);
+                    b.r12_cart(:,ib) = [x;y;z];
                 end
     
                 %%% real bead absolute positions
@@ -141,41 +155,32 @@ classdef block
                 y_basis = ars.unitVector(cross(z_basis,ars.boxMuller()));
                 x_basis = cross(y_basis,z_basis);
                 T = [x_basis,y_basis,z_basis];
-                origin = r_conn - T*b.r12_cart(:,i_conn);
+                com = r_conn - T*b.r12_cart(:,i_conn);
                 b.r = zeros(3,b.n);
-                count = 0;
-                for zi = 1:b.n_z
-                    for hi = 1:b.n_xy
-                        index = b.get_i(hi,zi);
-                        if index ~= 0
-                            count = count+1;
-                            b.r(:,index) = ars.applyPBC(origin + T*b.r12_cart(:,index), p.dbox);
-                            overlap = ars.checkOverlap(b.r(:,index),r_other,p.r12_cut_WCA,p.dbox);
-                            if overlap == true
-                                break
-                            end
-                        end
-                    end
-                    if overlap == true
+                for ib = 1:b.n_real
+                    b.r(:,ib) = com + T*b.r12_cart(:,ib);
+                    overlap = ars.checkOverlap(b.r(:,ib),r_other,p.r12_cut_WCA,p.dbox);
+                    if overlap
                         break
                     end
                 end
 
                 %%% reset if overlap
-                if overlap == true
+                if overlap
                     attempts = attempts + 1;
                     continue
                 end
     
                 %%% patch bead absolute positions
-                for i = 1:b.npatch
-                    index = b.n_r+i;
-                    b.r(:,index) = ars.applyPBC(origin + T*b.r12_cart(:,index), p.dbox);
+                for pi = 1:b.npatch
+                    ib = b.n-b.npatch+pi;
+                    b.r(:,ib) = com + T*b.r12_cart(:,ib);
                 end
 
                 %%% block successfully initiated
-                r_other = ars.myHorzcat(r_other,b.r(:,1:b.n_r));
-                break
+                r_other = ars.myHorzcat(r_other,b.r(:,1:b.n-b.npatch));
+                failed = false;
+                return
             end
         end
     
@@ -186,7 +191,7 @@ classdef block
         %%% Static Functions %%%%%%%%%%%%%%%%%%%%%%%%%
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-        %%% get patterns (all lengths are in r12_adj_block units)
+        %%% get patterns (all lengths are in r12_helix units)
         function [pattern,hiHollow,hiL,hiR,hiM] = setpat(pattern_label)
 
             if pattern_label == "1HB"
@@ -201,8 +206,8 @@ classdef block
 
             elseif pattern_label == "sq8HB"
                 %%% all helices
-                pattern = [0 1 2 0 2 0 1 2;...
-                           0 0 0 1 1 2 2 2];
+                pattern = [-1  0  1 -1  1 -1  0  1;...
+                           -1 -1 -1  0  0  1  1  1];
                 %%% helix identification
                 hiHollow = [];
                 hiL = 1;

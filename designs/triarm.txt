@@ -1,22 +1,32 @@
 %%% blocks
-block B1        1HB 11                 %name, pattern, height
+block B1        1HB 11                  % pattern, height
 
 %%% patches
-patch CRU       B1 60  1.2 -1          %name, block, theta, radius, z
-patch CRL       B1 120 1.2 -1          %name, block, theta, radius, z
-patch CLL       B1 240 1.2 -1          %name, block, theta, radius, z
-patch CLU       B1 300 1.2 -1          %name, block, theta, radius, z
-patch L1        B1 0   1 11            %name, block, theta, radius, z
-patch L2        B1 120 1 11            %name, block, theta, radius, z
-patch L3        B1 240 1 11            %name, block, theta, radius, z
+patch CRU       B1 60  1.2 -1           % block type, theta, radius, z
+patch CRL       B1 120 1.2 -1           % block type, theta, radius, z
+patch CLL       B1 240 1.2 -1           % block type, theta, radius, z
+patch CLU       B1 300 1.2 -1           % block type, theta, radius, z
+patch L1        B1 0   1 11             % block type, theta, radius, z
+patch L2        B1 120 1 11             % block type, theta, radius, z
+patch L3        B1 240 1 11             % block type, theta, radius, z
 
-%%% origami (type 1)
-origami O1                          %name
-O1 blocks       B1 B1 B1            %block type(s)
-O1 conn         1 P-CRU 2 P-CLU 0   %block index 1, location 1, block index 2, location 2, length
-O1 conn         1 P-CRL 2 P-CLL 0   %block index 1, location 1, block index 2, location 2, length
-O1 conn         2 P-CRU 3 P-CLU 0   %block index 1, location 1, block index 2, location 2, length
-O1 conn         2 P-CRL 3 P-CLL 0   %block index 1, location 1, block index 2, location 2, length
-O1 conn         3 P-CRU 1 P-CLU 0   %block index 1, location 1, block index 2, location 2, length
-O1 conn         3 P-CRL 1 P-CLL 0   %block index 1, location 1, block index 2, location 2, length
-O1 count        4                   %number to create
+%%% origami
+origami O1      4                       % count
+O1 blocks       B1 B1 B1                % block type(s)
+O1 conn         1 P-CRU 2 P-CLU 0       % block index + location 1 and 2, length [nm]
+O1 conn         1 P-CRL 2 P-CLL 0       % block index + location 1 and 2, length [nm]
+O1 conn         2 P-CRU 3 P-CLU 0       % block index + location 1 and 2, length [nm]
+O1 conn         2 P-CRL 3 P-CLL 0       % block index + location 1 and 2, length [nm]
+O1 conn         3 P-CRU 1 P-CLU 0       % block index + location 1 and 2, length [nm]
+O1 conn         3 P-CRL 1 P-CLL 0       % block index + location 1 and 2, length [nm]
+
+%%% linkers
+linker L1       0                   % length [nm]
+L1 5p           O1 1 P-L1           % origami type, block indices, location
+L1 3p           O1 2 P-L1           % origami type, block indices, location
+linker L2       0                   % length [nm]
+L2 5p           O1 1 P-L2           % origami type, block indices, location
+L2 3p           O1 2 P-L2           % origami type, block indices, location
+linker L3       0                   % length [nm]
+L3 5p           O1 1 P-L3           % origami type, block indices, location
+L3 3p           O1 2 P-L3           % origami type, block indices, location

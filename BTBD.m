@@ -3,15 +3,9 @@ clc; clear; close all;
 rng(42)
 
 %%% To Do
-% correct pairwise coffecients for linked block beads.
 % replace bond write/break with react if unlinking is desired.
 % add option to define origami initial configuration.
-% add option to set linker spring constnat.
-% add option to set connection distance and spring constant.
-% initialize origami in empty box (ensuring no internal overlap), then
-  % place into system (ensuring no overlap with other origamis).
-% improve bead notation: bi = block index, ib = bead index within block,
-  % thus removing need for confusing pi and ui indices.
+% add option to set linker and connection spring constant.
 
 %%% Notation
 % r - position vector
@@ -20,9 +14,9 @@ rng(42)
 % b, bs, bi - block, list of blocks, block index
 % nvar - number of var
 % var.n or n_var - number of beads in var
-% i - bead index within block
-% pi - bead (particle) index across entire origami
-% ui - (universal) bead index across entire system
+% ib - bead index within block
+% io - bead index within entire origami
+% iu - bead index within the universe
 % connection - permenant (usually ssDNA scaffold) bond
 % linker - switchable (usually hybridizing DNA) bond
 
@@ -35,8 +29,8 @@ rng(42)
   % name - how to identify the patch for connections and linkers
   % block - name of block on which to place the patch
   % theta - polar angle in xy-plane (in degrees) of patch location
-  % radius - distance from z-axis (in r12_adj_block units) of patch location
-  % z - height along z-axis (in r12_eq_block units) of patch location
+  % radius - distance from z-axis (in r12_helix units) of patch location
+  % z - height along z-axis (in r12_bead units) of patch location
 % origami: collection of connected blocks
   % name - how to identify the origami for defining parameters and adding linkers
   % block - names of block types (blocks are indexed in the given order)
@@ -62,7 +56,7 @@ rng(42)
 
 %%% read input
 inFile = "./designs/triarm.txt";
-[os,linked,o_types,conn_types,conn_r12_eqs] = read_input(inFile);
+[os,origami_types,linker_types] = read_input(inFile);
 
 %%% output parameters
 outFold = "/Users/dduke/Files/block_tether/network/active/";
@@ -77,7 +71,7 @@ dump_every      = 1E4;      % steps         - how often to write to output
 %%% computational parameters
 dt              = 0.01;     % ns            - time step
 dbox            = 150;      % nm            - periodic boundary diameter
-verlet_skin     = 4;        % nm            - width of neighbor list skin (= r12_cut - r12_cut_WCA)
+verlet_skin     = 4;        % nm            - width of neighbor list skin
 neigh_every     = 1E1;      % steps         - how often to consider updating neighbor list
 react_every     = 1E1;      % steps         - how often to check for linker hybridization
 
@@ -85,17 +79,16 @@ react_every     = 1E1;      % steps         - how often to check for linker hybr
 T               = 300;      % K             - temperature
 sigma           = 10;       % nm            - WCA distance parameter
 epsilon         = 0.1;      % kcal/mol      - WCA energy parameter
-r12_eq_block    = 5;        % nm            - equilibrium block bead separation
-r12_adj_block   = 5;        % nm            - adjacent block helix separation
-k_x_conn        = 0.1;        % kcal/mol/nm2  - connection spring constant
-r12_eq_linker   = 3;        % nm            - linker equilibrium distance
+r12_bead        = 5;        % nm            - helix separation
+r12_helix       = 5;        % nm            - bead separation
+k_x_conn        = 1;        % kcal/mol/nm2  - connection spring constant
 k_x_linker      = 1;        % kcal/mol/nm2  - linker spring constant
 
 %%% create parameters class
 p = parameters(nstep_eq,shrink_ratio,nstep_prod,dump_every,...
                dt,dbox,verlet_skin,neigh_every,react_every,...
-               T,sigma,epsilon,r12_eq_block,r12_adj_block,...
-               k_x_conn,r12_eq_linker,k_x_linker);
+               T,sigma,epsilon,r12_bead,r12_helix,...
+               k_x_conn,k_x_linker);
 
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -115,16 +108,16 @@ for i = 1:nsim
     end
 
     %%% initialize positions
-    os = place_origami(os,p);
+    os = init_positions(os,p);
 
     %%% write lammps simulation geometry file
     geoFile = simFold + "geometry.in";
     geoVisFile = simFold + "geometry_vis.in";
-    compose_geo(geoFile,geoVisFile,os,linked,o_types,conn_types,dbox);
+    compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,dbox);
     
     %%% write lammps input file
     inputFile = simFold + "lammps.in";
-    write_input(inputFile,p,linked,conn_types,conn_r12_eqs)
+    write_input(inputFile,p,origami_types,linker_types)
 end
 
 
@@ -133,7 +126,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% initilize positions of the entire system
-function os = place_origami(os,p)
+function os = init_positions(os,p)
     max_attempts = 10;
 
     %%% initialize avoided positions
@@ -153,21 +146,19 @@ function os = place_origami(os,p)
         for oi = 1:length(os)
 
             %%% add origami
-            [os(oi),fail,r_other] = os(oi).init(p,r_other);
+            disp(strcat("Placing origami ",num2str(oi),"..."))
+            [os(oi),failed,r_other] = os(oi).init_positions(p,r_other);
 
             %%% reset if failed
-            if fail == true
+            if failed == true
                 attempts = attempts + 1;
                 r_other = r_other_initial;
                 break
             end
-
-            %%% update positions
-            os(oi).r = os(oi).update_r;
         end
 
         %%% reset if failed
-        if fail == true
+        if failed == true
             continue
         end
 
@@ -180,69 +171,33 @@ function os = place_origami(os,p)
 end
 
 
-%%% create linkers by updating linked matrix
-function linked = linker(oi1s,bi1s,loc1,oi2s,bi2s,loc2,os,linked)
-
-    %%% meaning of linked matrix values
-    % 0 - not linked to anything
-    % odd - linked to li+1
-    % even - linked to li-1
-
-    %%% identify if linker(s) are intra or inter
-    if isequal(oi1s,oi2s)
-        interlink = false;
-        linker_index = ars.myMax(linked)/2;
-    else
-        interlink = true;
-        linker_index = ars.myMax(linked)/2 + 1;
-    end
-
-    %%% set values in linker array
-    for oi1 = oi1s
-        for oi2 = oi2s
-            if oi2 == oi1 || interlink == true
-                if interlink == false
-                    linker_index = linker_index + 1;
-                end
-                for j1 = 1:length(bi1s)
-                    for j2 = 1:length(bi2s)
-                        bi1 = bi1s(j1);
-                        bi2 = bi2s(j2);
-                        i1 = os(oi1).bs(bi1).interpret_loc(loc1);
-                        i2 = os(oi2).bs(bi2).interpret_loc(loc2);
-                        pi1 = os(oi1).get_pi(bi1,i1);
-                        pi2 = os(oi2).get_pi(bi2,i2);
-                        linked(oi1,pi1) = linker_index*2-1;
-                        linked(oi2,pi2) = linker_index*2;
-                    end
-                end
-            end
-        end
-    end
-end
-
-
-%%% map between universal index and origami/particle index
-function [get_oi,get_pi,get_ui] = map_indices(os)
-    max_pi = max([os.n]);
+%%% map between universal index and origami indices
+function [get_oi,get_io,get_iu] = map_indices(os)
+    max_io = max([os.n]);
     n_uni = sum([os.n]);
     get_oi = zeros(1,n_uni);
-    get_pi = zeros(1,n_uni);
-    get_ui = zeros(length(os),max_pi);
-    ui = 0;
+    get_io = zeros(1,n_uni);
+    get_iu = zeros(length(os),max_io);
+    iu = 0;
     for oi = 1:length(os)
-        for pi = 1:os(oi).n
-            ui = ui+1;
-            get_oi(ui) = oi;
-            get_pi(ui) = pi;
-            get_ui(oi,pi) = ui;
+        for io = 1:os(oi).n
+            iu = iu+1;
+            get_oi(iu) = oi;
+            get_io(iu) = io;
+            get_iu(oi,io) = iu;
         end
     end
 end
 
 
+
+
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% File Handlers %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 %%% read input file and create corresponding origami objects
-function [os,linked,o_types,conn_types,conn_r12_eqs] = read_input(inFile)
+function [os,origami_types,linker_types] = read_input(inFile)
 
     %%% open file
     f = fopen(inFile, 'r');
@@ -253,273 +208,197 @@ function [os,linked,o_types,conn_types,conn_r12_eqs] = read_input(inFile)
     %%% initialize dictionaries
     blocks = dictionary();
     origamis = dictionary();
-    o_blocks = dictionary();
-    o_conns = dictionary();
-    o_counts = dictionary();
+    origami_types = dictionary();
+    linker_types = dictionary();
 
-    %%% initialize lists and counters
-    os = origami.empty;
-    linker_otypes = strings(2,0);
-    linker_bis = zeros(2,0);
-    linker_locs = cell(2,0);
-    nlinker = 0;
-
-    %%% loop over lines, discarding empty ones and comments
-    linker_flag = false;
+    %%% loop over lines
     while ~feof(f)
         line = fgetl(f);
+
+        %%% discard empty lines and whole-line comments
         if isempty(line) || startsWith(line, '%')
-            continue;
+            continue
         end
 
         %%% extract values before comment
         extract = split(extractBefore([line,'%'],'%'));
         extract = extract(~cellfun('isempty',extract));
         if length(extract) < 2
-            continue;
+            continue
         end
 
         %%% set the appropriate value
-        if linker_flag == true
-            linker_flag = false;
-            linker_otypes(2,nlinker) = extract{1};
-            if extract{2} == 'A'
-                linker_bis(2,nlinker) = 0;
-            elseif extract{2} == 'B'
-                linker_bis(2,nlinker) = -1;
-            elseif ~isnan(str2double(extract{2}))
-                linker_bis(2,nlinker) = str2double(extract{2});
-            else
-                error("Unknown linker block: " + extract{2} + ".")
-            end
-            linker_locs{2,nlinker} = extract{3};
-        else
-            switch extract{1}
-                case 'block'
-                    blocks(extract{2}) = block(convertCharsToStrings(extract{3}),str2double(extract{4}));
-                case 'patch'
-                    blocks(extract{3}) = blocks(extract{3}).add_patch(extract{2},str2double(extract{4}),str2double(extract{5}),str2double(extract{6}));
-                case 'origami'
-                    origamis(extract{2}) = origami();
-                    o_blocks{extract{2}} = block.empty;
-                    o_conns{extract{2}} = cell(0);
-                    o_counts(extract{2}) = 0;
-                case 'linker'
-                    linker_flag = true;
-                    nlinker = nlinker + 1;
-                    linker_otypes(1,nlinker) = extract{2};
-                    if extract{3} == 'A'
-                        linker_bis(1,nlinker) = 0;
-                    elseif extract{3} == 'B'
-                        linker_bis(1,nlinker) = -1;
-                    elseif ~isnan(str2double(extract{3}))
-                        linker_bis(1,nlinker) = str2double(extract{3});
-                    else
-                        error("Unknown linker block: " + extract{3} + ".")
+        switch extract{1}
+            case 'block'
+                blocks(extract{2}) = block(convertCharsToStrings(extract{3}),str2double(extract{4}));
+            case 'patch'
+                blocks(extract{3}) = blocks(extract{3}).add_patch(extract{2},str2double(extract{4}),str2double(extract{5}),str2double(extract{6}));
+            case 'origami'
+                origamis(extract{2}) = origami(string(extract{2}));
+                origami_type.count = str2double(extract{3});
+                origami_type.conns_r12_eq = [];
+                origami_types(extract{2}) = origami_type;
+            case 'linker'
+                linker_type.r12_eq = str2double(extract{3});
+                linker_types(extract{2}) = linker_type;
+            otherwise
+                if isKey(origami_types,extract{1})
+                    switch extract{2}
+                        case 'blocks'
+                            for bi = 1:length(extract)-2
+                                b = blocks(extract{bi+2});
+                                origamis(extract{1}) = origamis(extract{1}).add_block(b);
+                            end
+                        case 'conn'
+                            origamis(extract{1}) = origamis(extract{1}).add_conn(str2double(extract{3}),extract{4},str2double(extract{5}),extract{6},str2double(extract{7}));
+                            origami_types(extract{1}).conns_r12_eq = [ origami_types(extract{1}).conns_r12_eq str2double(extract{7}) ];
+                        otherwise
+                            error("Unknown origami parameter: " + extract{2})
                     end
-                    linker_locs{1,nlinker} = extract{4};
-                otherwise
-                    if isKey(o_counts,extract{1})
-                        switch extract{2}
-                            case 'blocks'
-                                block_list = block.empty;
-                                for bi = 1:length(extract)-2
-                                    block_list(bi) = blocks(extract{bi+2});
-                                end
-                                o_blocks{extract{1}} = block_list;
-                            case 'conn'
-                                nconn = length(o_conns{extract{1}});
-                                o_conns{extract{1}}{nconn+1} = {str2double(extract{3}),extract{4},str2double(extract{5}),extract{6},str2double(extract{7})};
-                            case 'count'
-                                o_counts(extract{1}) = str2double(extract{3});
-                            otherwise
-                                error("Unknown origami parameter: " + extract{2})
-                        end
-                    else
-                        error("Unknown system parameter: " + extract{1})
+                elseif isKey(linker_types,extract{1})
+                    switch extract{2}
+                        case '5p'
+                            origamis(extract{3}) = origamis(extract{3}).add_linker(string(extract{1}),1,extract{4},extract{5});
+                        case '3p'
+                            origamis(extract{3}) = origamis(extract{3}).add_linker(string(extract{1}),0,extract{4},extract{5});
+                        otherwise
+                            error("Unknown linker parameter: " + extract{2})
                     end
-            end
+                else
+                    error("Unknown system parameter: " + extract{1})
+                end
         end
     end
     fclose(f);
 
-    %%% create type array
-    o_counts_values = o_counts.values();
-    o_types = zeros(1,sum(o_counts_values));
-    o_type = 1;
-    for oi = 1:length(o_types)
-        if oi > sum(o_counts_values(1:o_type))
-            o_type = o_type + 1;
-        end
-        o_types(oi) = o_type;
-    end
-
     %%% create origamis
-    o_indices = dictionary();
-    o_keys = keys(o_counts)';
-    for o_name = o_keys
-        o_indices{o_name} = length(os)+1:length(os)+o_counts(o_name);
-        os(o_indices{o_name}) = origami( o_blocks{o_name}, o_conns{o_name});
-    end
-
-    %%% create linkers
-    linked = zeros(length(os),max([os.n]));
-    for li = 1:nlinker
-        %%% starting side of the linker
-        oi1s = o_indices{linker_otypes(1,li)};
-        if linker_bis(1,li) == 0
-            bi1s = 1:length([os(oi1s(1)).bs]);
-        elseif linker_bis(1,li) == -1
-            bi1s = 2:length([os(oi1s(1)).bs]);
-        else
-            bi1s = linker_bis(1,li);
-        end
-        loc1 = linker_locs{1,li};
-        %%% ending side of the linker
-        oi2s = o_indices{linker_otypes(2,li)};
-        if linker_bis(2,li) == 0
-            bi2s = 1:length([os(oi2s(1)).bs]);
-        elseif linker_bis(2,li) == -1
-            bi2s = 2:length([os(oi2s(1)).bs]);
-        else
-            bi2s = linker_bis(2,li);
-        end
-        loc2 = linker_locs{2,li};
-        %%% create linker
-        linked = linker(oi1s,bi1s,loc1,oi2s,bi2s,loc2,os,linked);
-    end
-
-    %%% connections
-    no_type = numEntries(o_counts);
-    max_nconn = 0;
-    for o_name = o_keys
-        nconn = length(o_conns{o_name});
-        max_nconn = max([nconn,max_nconn]);
-    end
-    conn_types = zeros(no_type,max_nconn);
-    conn_r12_eqs = zeros(no_type,max_nconn);
-    conn_type_count = 0;
-    o_type = 0;
-    for o_name = o_keys
-        o_type = o_type+1;
-        for j = 1:length(o_conns{o_name})
-            conn_type_count = conn_type_count+1;
-            conn_types(o_type,j) = conn_type_count;
-            conn_r12_eqs(o_type,j) = o_conns{o_name}{j}{5};
-        end
+    os = origami.empty;
+    for o_name = keys(origami_types)'
+        count = origami_types(o_name).count;
+        os(length(os)+1:length(os)+count) = origamis(o_name);
     end
 end
 
 
-%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% File Writers %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 %%% write lammps geometry file
-function compose_geo(geoFile,geoVisFile,os,linked,o_types,conn_types,dbox)
+function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,dbox)
 
     %%% grouping atoms
     % atom ID - universal bead index
     % molecule tag - universal block index
-    % atom type - unlinked bead (1), unlinked patch (2), linker bead/patch (>2)
-    % bond type - linker (1), connection (>1)
+    % atom type - unlinked bead (1), unlinked patch (2), linker bead/patch (3:2+nlinker*2)
+    % bond type - linker (1:nlinker), connection (nlinker+1:nlinker+nconn)
 
     %%% calculate index mapping
-    [get_oi,get_pi,get_ui] = map_indices(os);
-    nlinker = ars.myMax(linked)/2;
-    
-    %%% unwrap from pbc
-    for oi = 1:length(os)
-        for bi = 1:length(os(oi).bs)
-            r_ref = ars.calcCOM(os(oi).bs(bi).r,dbox);
-            for i = 1:os(oi).bs(bi).n
-                pi = os(oi).get_pi(bi,i);
-                os(oi).r(:,pi) = r_ref + ars.applyPBC(os(oi).bs(bi).r(:,i) - r_ref, dbox);
-            end
-        end
-    end
+    [get_oi,get_io,get_iu] = map_indices(os);
 
-    %%% get count for objects
+    %%% get counts
     natom = sum([os.n]);
-    nbond = 0;
-    for oi = 1:length(os)
-        nbond = nbond + length(os(oi).cs);
-    end
+    nbond = sum([os.nconn]);
+
+    %%% initialize mass info
+    nlinker = numEntries(linker_types);
+    natomType = 2 + nlinker*2;
+    masses = ones(1,natomType);
+    mass_patch = 0.01;
+    masses(2) = mass_patch;
 
     %%% compile atom info
     atoms = zeros(5,natom);
-    linker_isPatch = zeros(nlinker);
     block_count = 0;
-    for ui = 1:natom
-        oi = get_oi(ui);
-        pi = get_pi(ui);
-        if os(oi).get_i(pi) == 1
+    for iu = 1:natom
+        oi = get_oi(iu);
+        io = get_io(iu);
+        if os(oi).get_ib(io) == 1
             block_count = block_count + 1;
         end
-        atoms(1,ui) = block_count;
-        if linked(oi,pi) > 0
-            atoms(2,ui) = linked(oi,pi) + 2;
-            linker_index = ceil(linked(oi,pi)/2);
-            if linker_isPatch(linker_index) == 0
-                if ~os(oi).is_real(pi)
-                    linker_isPatch(linker_index) = 1;
-                end
-            end
-        elseif os(oi).get_i(pi) > os(oi).bs(os(oi).get_bi(pi)).n_r
-            atoms(2,ui) = 2;
+        atoms(1,iu) = block_count;
+        if os(oi).is_patch(io)
+            atoms(2,iu) = 2;
         else
-            atoms(2,ui) = 1;
+            atoms(2,iu) = 1;
         end
-        atoms(3:5,ui) = os(oi).r(:,pi);
+        atoms(3:5,iu) = os(oi).r(:,io);
+    end
+    for oi = 1:length(os)
+        for lio = 1:os(oi).nlink5
+            io = os(oi).link5s_io(lio);
+            iu = get_iu(oi,io);
+            o_name = os(oi).link5s_name(lio);
+            li = find(keys(linker_types)==o_name);
+            atomType = 1 + 2*li;
+            atoms(2,iu) = atomType;
+            if os(oi).is_patch(io)
+                masses(atomType) = mass_patch;
+            end
+        end
+        for lio = 1:os(oi).nlink3
+            io = os(oi).link3s_io(lio);
+            iu = get_iu(oi,io);
+            o_name = os(oi).link3s_name(lio);
+            li = find(keys(linker_types)==o_name);
+            atomType = 2 + 2*li;
+            atoms(2,iu) = atomType;
+            if os(oi).is_patch(io)
+                masses(atomType) = mass_patch;
+            end
+        end
     end
 
     %%% compile bond info
     bonds = zeros(3,nbond);
     if nbond > 0
+        bond_type = nlinker;
         bond_count = 0;
-        for oi = 1:length(os)
-            for ci = 1:length(os(oi).cs)
-                bond_count = bond_count + 1;
-                ui1 = get_ui( oi, os(oi).get_pi( os(oi).cs(ci).bis(1), os(oi).cs(ci).is(1) ) );
-                ui2 = get_ui( oi, os(oi).get_pi( os(oi).cs(ci).bis(2), os(oi).cs(ci).is(2) ) );
-                bond_type = conn_types(o_types(oi),ci) + 1;
-                bonds(1,bond_count) = bond_type;
-                bonds(2,bond_count) = ui1;
-                bonds(3,bond_count) = ui2;
+        for o_name = keys(origami_types)'
+            ois = find([os.name]==o_name);
+            for ci = 1:length(origami_types(o_name).conns_r12_eq)
+                bond_type = bond_type + 1;
+                for oi = ois
+                    bond_count = bond_count + 1;
+                    iu1 = get_iu( oi, os(oi).get_io( os(oi).conns_bis(1,ci), os(oi).conns_ibs(1,ci) ) );
+                    iu2 = get_iu( oi, os(oi).get_io( os(oi).conns_bis(2,ci), os(oi).conns_ibs(2,ci) ) );
+                    bonds(1,bond_count) = bond_type;
+                    bonds(2,bond_count) = iu1;
+                    bonds(3,bond_count) = iu2;
+                end
             end
         end
     end
+    nbondType = bond_type;
 
     %%% compile angle info
     angles = zeros(4,0);
 
-    %%% compile mass info
-    natomType = ars.myMax(linked) + 2;
-    masses = ones(1,natomType);
-    masses(2) = 0.01;
-    for i = 3:natomType
-        linker_index = ceil((i-2)/2);
-        if linker_isPatch(linker_index) == 1
-            masses(i) = 0.01;
-        end
-    end
-
     %%% write simulation geometry file
-    ars.writeGeo(geoFile,dbox,atoms,bonds,angles,masses=masses)
+    ars.writeGeo(geoFile,dbox,atoms,bonds,angles,masses=masses,nbondType=nbondType)
 
     %%% compile atom info for visualization
     atoms_vis = atoms;
-    no_type = max(o_types);
-    for ui = 1:natom
-        oi = get_oi(ui);
-        pi = get_pi(ui);
-        atoms_vis(1,ui) = oi;
-        if linked(oi,pi) > 0
-            atoms_vis(2,ui) = no_type + 1 + floor((linked(oi,pi)+1)/2);
-        elseif os(oi).get_i(pi) > os(oi).bs(os(oi).get_bi(pi)).n_r
-            atoms_vis(2,ui) = no_type + 1;
+    norigami_type = numEntries(origami_types);
+    for iu = 1:natom
+        oi = get_oi(iu);
+        io = get_io(iu);
+        atoms_vis(1,iu) = oi;
+        if os(oi).is_patch(io)
+            atoms_vis(2,iu) = norigami_type + 1;
         else
-            atoms_vis(2,ui) = o_types(oi);
+            o_name = os(oi).name;
+            atoms_vis(2,iu) = find(keys(origami_types)==o_name);
+        end
+    end
+    for oi = 1:length(os)
+        for lio = 1:os(oi).nlink5
+            io = os(oi).link5s_io(lio);
+            iu = get_iu(oi,io);
+            li = find(keys(linker_types)==os(oi).link5s_name(lio));
+            atoms_vis(2,iu) = norigami_type + 1 + li;
+        end
+        for lio = 1:os(oi).nlink3
+            io = os(oi).link3s_io(lio);
+            iu = get_iu(oi,io);
+            li = find(keys(linker_types)==os(oi).link3s_name(lio));
+            atoms_vis(2,iu) = norigami_type + 1 + li;
         end
     end
 
@@ -529,16 +408,31 @@ end
 
 
 %%% write lammps input file
-function write_input(inputFile,p,linked,conn_types,conn_r12_eqs)
+function write_input(inputFile,p,origami_types,linker_types)
+
+    %%% get counts
+    nlinker = numEntries(linker_types);
+    natomType = 2+nlinker*2;
 
     %%% formatting
-    nlinker = ars.myMax(linked)/2;
-    natomType = 2+nlinker*2;
     len_nlinker = floor(log10(nlinker))+1;
     len_natomType = floor(log10(natomType))+1;
 
-    %%% calculations
-    comm_cutoff = max([p.r12_cut_WCA, p.r12_eq_linker]);
+    %%% calculate communication cutoff
+    U_max = 12;
+    comm_cutoff = p.r12_cut_WCA;
+    for o_name = keys(origami_types)'
+        for r12_eq = origami_types(o_name).conns_r12_eq
+            r12_max = r12_eq + sqrt(2*U_max/p.k_x_conn);
+            comm_cutoff = max([comm_cutoff,r12_max]);
+        end
+    end
+    if nlinker > 0
+        for l_name = keys(linker_types)'
+            r12_max = linker_types(l_name).r12_eq + sqrt(2*U_max/p.k_x_linker);
+            comm_cutoff = max([comm_cutoff,r12_max]);
+        end
+    end
 
     %%% open file
     f = fopen(inputFile,'w');
@@ -573,27 +467,38 @@ function write_input(inputFile,p,linked,conn_types,conn_r12_eqs)
         "pair_coeff      1 1 lj/cut ", ars.fstring(p.epsilon,0,2), " ", ars.fstring(p.sigma,0,2), "\n",...
         "pair_modify     pair lj/cut shift yes\n"));
 
-    %%% bonds
-    fprintf(f,strcat(...
-        "bond_style      harmonic\n",...
-        "bond_coeff      1 ", ars.fstring(p.k_x_linker/2,0,2), " ", ars.fstring(p.r12_eq_linker,0,2), "\n"));
-    no_type = size(conn_types,1);
-    for i = 1:no_type
-        nconn_type = nnz(conn_types(i,:));
-        for j = 1:nconn_type
+    %%% prepare bonds
+    fprintf(f,...
+        "bond_style      harmonic\n");
+    bond_type = 0;
+
+    %%% linker bonds
+    if nlinker > 0
+        for l_name = keys(linker_types)'
+            bond_type = bond_type + 1;
+            r12_eq = linker_types(l_name).r12_eq;
             fprintf(f,strcat(...
-                "bond_coeff      ", num2str(conn_types(i,j)+1), " ", ars.fstring(p.k_x_conn/2,0,2), " ", ars.fstring(conn_r12_eqs(i,j),0,2), "\n"));
+                "bond_coeff      ", num2str(bond_type), " ", ars.fstring(p.k_x_linker/2,0,2), " ", ars.fstring(r12_eq,0,2), "\n"));
+        end
+    end
+
+    %%% connection bonds
+    for o_name = keys(origami_types)'
+        for r12_eq = origami_types(o_name).conns_r12_eq
+            bond_type = bond_type + 1;
+            fprintf(f,strcat(...
+                "bond_coeff      ", num2str(bond_type), " ", ars.fstring(p.k_x_conn/2,0,2), " ", ars.fstring(r12_eq,0,2), "\n"));
         end
     end
     
-    %%% define groups
+    %%% linker group
     if nlinker > 0
         fprintf(f,strcat(...
-            "group           linked type 3:", num2str(natomType), "\n"));
+            "group           linker type 3:", num2str(natomType), "\n"));
     end
     fprintf(f,"\n");
 
-    %%% setup simulation
+    %%% thermostat
     fprintf(f,strcat(...
         "## Thermostat\n",...
         "fix             tstat all rigid/nve molecule langevin ", num2str(p.T), " ", num2str(p.T), " 0.049 37\n",...
@@ -604,24 +509,24 @@ function write_input(inputFile,p,linked,conn_types,conn_r12_eqs)
         fprintf(f,strcat(...
             "## Relaxation\n",...
             "timestep        ", num2str(p.dt/10), "\n"));
-    if p.shrink_ratio ~= 1
+        if p.shrink_ratio ~= 1
+            fprintf(f,strcat(...
+                "fix             deformation all deform 1 &\n",...
+                "                x final ", ars.fstring(-p.dbox/2*p.shrink_ratio,0,2), " ", ars.fstring(p.dbox/2*p.shrink_ratio,0,2), " &\n",...
+                "                y final ", ars.fstring(-p.dbox/2*p.shrink_ratio,0,2), " ", ars.fstring(p.dbox/2*p.shrink_ratio,0,2), " &\n",...
+                "                z final ", ars.fstring(-p.dbox/2*p.shrink_ratio,0,2), " ", ars.fstring(p.dbox/2*p.shrink_ratio,0,2), "\n"));
+        end
         fprintf(f,strcat(...
-            "fix             deformation all deform 1 &\n",...
-            "                x final ", ars.fstring(-p.dbox/2*p.shrink_ratio,0,2), " ", ars.fstring(p.dbox/2*p.shrink_ratio,0,2), " &\n",...
-            "                y final ", ars.fstring(-p.dbox/2*p.shrink_ratio,0,2), " ", ars.fstring(p.dbox/2*p.shrink_ratio,0,2), " &\n",...
-            "                z final ", ars.fstring(-p.dbox/2*p.shrink_ratio,0,2), " ", ars.fstring(p.dbox/2*p.shrink_ratio,0,2), "\n"));
-    end
-    fprintf(f,strcat(...
-        "run             ", num2str(p.nstep_eq), "\n"));
-    if p.shrink_ratio ~= 1
+            "run             ", num2str(p.nstep_eq), "\n"));
+        if p.shrink_ratio ~= 1
+            fprintf(f,strcat(...
+                "unfix           deformation\n"));
+        end
         fprintf(f,strcat(...
-            "unfix           deformation\n"));
-    end
-    fprintf(f,strcat(...
-        "reset_timestep  0\n\n"));
+            "reset_timestep  0\n\n"));
     end
 
-    %%% production settings
+    %%% updates
     if p.nstep_prod > 0
         fprintf(f,strcat(...
             "## Updates\n",...
@@ -631,16 +536,19 @@ function write_input(inputFile,p,linked,conn_types,conn_r12_eqs)
             "dump            dump2 all local ", num2str(p.dump_every), " dump_bonds.txt index c_comp1[1] c_comp1[2] c_comp1[3]\n\n"));
     end
 
-    %%% define linkers
+    %%% reactions
     if nlinker > 0
         fprintf(f,"## Reactions\n");
-        for li = 1:nlinker
-            fixName = strcat("linker",ars.fstring(li,len_nlinker,0,"L"));
-            add_bond_create(f,fixName,li,p.r12_eq_linker,p.react_every,len_natomType);
+        for l_name = keys(linker_types)'
+            li = find(keys(linker_types)==l_name);
+            r12_eq = linker_types(l_name).r12_eq;
+            fixName = strcat("linker",ars.fstring(li,len_nlinker,0,"R","zero"));
+            add_bond_create(f,fixName,"linker",p.react_every,li*2-1,li*2,r12_eq,li,len_nlinker,len_natomType);
         end
         fprintf(f,"\n");
     end
 
+    %%% production
     if p.nstep_prod > 0
         fprintf(f,strcat(...
             "## Production\n",...
@@ -655,11 +563,11 @@ end
 
 
 %%% write fix bond create command
-function add_bond_create(f,fixName,li,r12_cut,react_every,len_natomType)
+function add_bond_create(f,fixName,groupName,react_every,atomType1,atomType2,r12_cut,bondType,len_bondType,len_natomType)
     fprintf(f,strcat(...
-        "fix             ", fixName, " linked bond/create ", num2str(react_every), " ",...
-        ars.fstring(li*2+1,len_natomType,0,"L"), " ", ars.fstring(li*2+2,len_natomType,0,"L"), " ",...
-        ars.fstring(r12_cut,0,2), " 1 ",...
-        "iparam 1 ", ars.fstring(li*2+1,len_natomType,0,"L"), " ",...
-        "jparam 1 ", ars.fstring(li*2+2,len_natomType,0,"L"), "\n"));
+        "fix             ", fixName, " ", groupName, " bond/create ", num2str(react_every), " ",...
+        ars.fstring(atomType1,len_natomType,0,"L"), " ", ars.fstring(atomType2,len_natomType,0,"L"), " ",...
+        ars.fstring(r12_cut,0,2), " ", ars.fstring(bondType,len_bondType,0,"L"), " ",...
+        "iparam 1 ", ars.fstring(atomType1,len_natomType,0,"L"), " ",...
+        "jparam 1 ", ars.fstring(atomType2,len_natomType,0,"L"), "\n"));
 end
