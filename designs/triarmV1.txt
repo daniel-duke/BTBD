@@ -1,0 +1,32 @@
+%%% blocks
+block B1        1HB 11
+
+%%% patches
+patch CRU       B1 60  1.2 -1
+patch CRL       B1 120 1.2 -1
+patch CLL       B1 240 1.2 -1
+patch CLU       B1 300 1.2 -1
+patch L1        B1 0   1 11
+patch L2        B1 120 1 11
+patch L3        B1 240 1 11
+
+%%% origami
+origami O1      4
+O1 blocks       B1 B1 B1
+O1 conn         1 P-CRU 2 P-CLU 0
+O1 conn         1 P-CRL 2 P-CLL 0
+O1 conn         2 P-CRU 3 P-CLU 0
+O1 conn         2 P-CRL 3 P-CLL 0
+O1 conn         3 P-CRU 1 P-CLU 0
+O1 conn         3 P-CRL 1 P-CLL 0
+
+%%% linkers
+linker L1       0
+L1 5p           O1 1 P-L1
+L1 3p           O1 2 P-L1
+linker L2       0
+L2 5p           O1 1 P-L2
+L2 3p           O1 2 P-L2
+linker L3       0
+L3 5p           O1 1 P-L3
+L3 3p           O1 2 P-L3

@@ -18,6 +18,7 @@ classdef parameters
         r12_bead
         k_x_conn
         k_x_linker
+        k_theta
     end
 
     methods
@@ -25,7 +26,7 @@ classdef parameters
         function p = parameters(nstep_eq,shrink_ratio,nstep_prod,dump_every,...
                                 dt,dbox,verlet_skin,neigh_every,react_every,...
                                 T,sigma,epsilon,r12_helix,r12_bead,...
-                                k_x_conn,k_x_linker)
+                                k_x_conn,k_x_linker,k_theta)
             if nargin > 0
                 p.nstep_eq = nstep_eq;
                 p.shrink_ratio = shrink_ratio;
@@ -44,6 +45,7 @@ classdef parameters
                 p.r12_bead = r12_bead;
                 p.k_x_conn = 6.96*k_x_conn;
                 p.k_x_linker = 6.96*k_x_linker;
+                p.k_theta = k_theta;
             end
         end
     end

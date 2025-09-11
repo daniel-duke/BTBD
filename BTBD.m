@@ -55,7 +55,7 @@ rng(42)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% read input
-inFile = "./designs/triarm.txt";
+inFile = "./designs/triarmV2.txt";
 [os,origami_types,linker_types] = read_input(inFile);
 
 %%% output parameters
@@ -83,12 +83,13 @@ r12_bead        = 5;        % nm            - helix separation
 r12_helix       = 5;        % nm            - bead separation
 k_x_conn        = 1;        % kcal/mol/nm2  - connection spring constant
 k_x_linker      = 1;        % kcal/mol/nm2  - linker spring constant
+k_theta         = 100;      % kcal/mol/rad2 - angle spring constant
 
 %%% create parameters class
 p = parameters(nstep_eq,shrink_ratio,nstep_prod,dump_every,...
                dt,dbox,verlet_skin,neigh_every,react_every,...
                T,sigma,epsilon,r12_bead,r12_helix,...
-               k_x_conn,k_x_linker);
+               k_x_conn,k_x_linker,k_theta);
 
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -146,7 +147,7 @@ function os = init_positions(os,p)
         for oi = 1:length(os)
 
             %%% add origami
-            disp(strcat("Placing origami ",num2str(oi),"..."))
+            disp(strcat("Initializing origami ",num2str(oi),"..."))
             [os(oi),failed,r_other] = os(oi).init_positions(p,r_other);
 
             %%% reset if failed
@@ -188,8 +189,6 @@ function [get_oi,get_io,get_iu] = map_indices(os)
         end
     end
 end
-
-
 
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -237,6 +236,7 @@ function [os,origami_types,linker_types] = read_input(inFile)
                 origamis(extract{2}) = origami(string(extract{2}));
                 origami_type.count = str2double(extract{3});
                 origami_type.conns_r12_eq = [];
+                origami_type.angles_theta_eq = [];
                 origami_types(extract{2}) = origami_type;
             case 'linker'
                 linker_type.r12_eq = str2double(extract{3});
@@ -252,6 +252,9 @@ function [os,origami_types,linker_types] = read_input(inFile)
                         case 'conn'
                             origamis(extract{1}) = origamis(extract{1}).add_conn(str2double(extract{3}),extract{4},str2double(extract{5}),extract{6},str2double(extract{7}));
                             origami_types(extract{1}).conns_r12_eq = [ origami_types(extract{1}).conns_r12_eq str2double(extract{7}) ];
+                        case 'angle'
+                            origamis(extract{1}) = origamis(extract{1}).add_angle(str2double(extract{3}),extract{4},str2double(extract{5}),extract{6},str2double(extract{7}),extract{8},str2double(extract{9}));
+                            origami_types(extract{1}).angles_theta_eq = [ origami_types(extract{1}).angles_theta_eq str2double(extract{9}) ];
                         otherwise
                             error("Unknown origami parameter: " + extract{2})
                     end
@@ -294,10 +297,15 @@ function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,dbox)
 
     %%% get counts
     natom = sum([os.n]);
-    nbond = sum([os.nconn]);
+    nconn = sum([os.nconn]);
+    nangle = sum([os.nangle]);
+
+    %%% count bond types
+    nlinker = numEntries(linker_types);
+    nconnType = length([values(origami_types).conns_r12_eq]);
+    nbondType = nlinker+nconnType+1;
 
     %%% initialize mass info
-    nlinker = numEntries(linker_types);
     natomType = 2 + nlinker*2;
     masses = ones(1,natomType);
     mass_patch = 0.01;
@@ -345,9 +353,9 @@ function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,dbox)
         end
     end
 
-    %%% compile bond info
-    bonds = zeros(3,nbond);
-    if nbond > 0
+    %%% connection bonds
+    bonds = zeros(3,0);
+    if nconn > 0
         bond_type = nlinker;
         bond_count = 0;
         for o_name = keys(origami_types)'
@@ -365,10 +373,60 @@ function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,dbox)
             end
         end
     end
-    nbondType = bond_type;
+
+    %%% rigid bonds for angles
+    if nangle > 0
+        bond_type = nbondType;
+        for o_name = keys(origami_types)'
+            ois = find([os.name]==o_name);
+            for ai = 1:length(origami_types(o_name).angles_theta_eq)
+                for oi = ois
+                    if os(oi).angles_bis(1,ai) == os(oi).angles_bis(2,ai)
+                        if os(oi).angles_bis(2,ai) == os(oi).angles_bis(3,ai)
+                            error("Cannot angle must span two rigid bodies.")
+                        end
+                        iu1 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(1,ai), os(oi).angles_ibs(1,ai) ) );
+                        iu2 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(2,ai), os(oi).angles_ibs(2,ai) ) );
+                        bond_count = bond_count + 1;
+                        bonds(1,bond_count) = bond_type;
+                        bonds(2,bond_count) = iu1;
+                        bonds(3,bond_count) = iu2;
+                    elseif os(oi).angles_bis(2,ai) == os(oi).angles_bis(3,ai)
+                        iu2 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(2,ai), os(oi).angles_ibs(2,ai) ) );
+                        iu3 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(3,ai), os(oi).angles_ibs(3,ai) ) );
+                        bond_count = bond_count + 1;
+                        bonds(1,bond_count) = bond_type;
+                        bonds(2,bond_count) = iu2;
+                        bonds(3,bond_count) = iu3;
+                    end
+                end
+            end
+        end
+    end
+
 
     %%% compile angle info
-    angles = zeros(4,0);
+    angles = zeros(4,nangle);
+    if nangle > 0
+        angle_type = 0;
+        angle_count = 0;
+        for o_name = keys(origami_types)'
+            ois = find([os.name]==o_name);
+            for ai = 1:length(origami_types(o_name).angles_theta_eq)
+                angle_type = angle_type + 1;
+                for oi = ois
+                    angle_count = angle_count + 1;
+                    iu1 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(1,ai), os(oi).angles_ibs(1,ai) ) );
+                    iu2 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(2,ai), os(oi).angles_ibs(2,ai) ) );
+                    iu3 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(3,ai), os(oi).angles_ibs(3,ai) ) );
+                    angles(1,angle_count) = angle_type;
+                    angles(2,angle_count) = iu1;
+                    angles(3,angle_count) = iu2;
+                    angles(4,angle_count) = iu3;
+                end
+            end
+        end
+    end
 
     %%% write simulation geometry file
     ars.writeGeo(geoFile,dbox,atoms,bonds,angles,masses=masses,nbondType=nbondType)
@@ -413,10 +471,9 @@ function write_input(inputFile,p,origami_types,linker_types)
     %%% get counts
     nlinker = numEntries(linker_types);
     natomType = 2+nlinker*2;
-
-    %%% formatting
-    len_nlinker = floor(log10(nlinker))+1;
-    len_natomType = floor(log10(natomType))+1;
+    nconnType = length([values(origami_types).conns_r12_eq]);
+    nbondType = nlinker+nconnType+1;
+    nangleType = length([values(origami_types).angles_theta_eq]);
 
     %%% calculate communication cutoff
     U_max = 12;
@@ -468,9 +525,15 @@ function write_input(inputFile,p,origami_types,linker_types)
         "pair_modify     pair lj/cut shift yes\n"));
 
     %%% prepare bonds
-    fprintf(f,...
-        "bond_style      harmonic\n");
-    bond_type = 0;
+    if nbondType > 1
+        fprintf(f,...
+            "bond_style      hybrid harmonic zero\n");
+        bond_type = 0;
+    else
+        fprintf(f,...
+            "bond_style      zero\n");
+    end
+
 
     %%% linker bonds
     if nlinker > 0
@@ -478,16 +541,42 @@ function write_input(inputFile,p,origami_types,linker_types)
             bond_type = bond_type + 1;
             r12_eq = linker_types(l_name).r12_eq;
             fprintf(f,strcat(...
-                "bond_coeff      ", num2str(bond_type), " ", ars.fstring(p.k_x_linker/2,0,2), " ", ars.fstring(r12_eq,0,2), "\n"));
+                "bond_coeff      ", num2str(bond_type), " harmonic ", ars.fstring(p.k_x_linker/2,0,2), " ", ars.fstring(r12_eq,0,2), "\n"));
         end
     end
 
     %%% connection bonds
-    for o_name = keys(origami_types)'
-        for r12_eq = origami_types(o_name).conns_r12_eq
-            bond_type = bond_type + 1;
-            fprintf(f,strcat(...
-                "bond_coeff      ", num2str(bond_type), " ", ars.fstring(p.k_x_conn/2,0,2), " ", ars.fstring(r12_eq,0,2), "\n"));
+    if nconnType > 0
+        for o_name = keys(origami_types)'
+            for r12_eq = origami_types(o_name).conns_r12_eq
+                bond_type = bond_type + 1;
+                fprintf(f,strcat(...
+                    "bond_coeff      ", num2str(bond_type), " harmonic ", ars.fstring(p.k_x_conn/2,0,2), " ", ars.fstring(r12_eq,0,2), "\n"));
+            end
+        end
+    end
+
+    %%% dummy bond
+    if nbondType > 1
+        bond_type = bond_type + 1;
+        fprintf(f,strcat(...
+            "bond_coeff      ", num2str(bond_type), " zero\n"));
+    else
+        fprintf(f,strcat(...
+            "bond_coeff      1\n"));
+    end
+
+    %%% angles
+    if nangleType > 0
+        fprintf(f,...
+            "angle_style     harmonic\n");
+        angle_type = 0;
+        for o_name = keys(origami_types)'
+            for theta_eq = origami_types(o_name).angles_theta_eq
+                angle_type = angle_type + 1;
+                fprintf(f,strcat(...
+                    "angle_coeff     ", num2str(angle_type), " ", ars.fstring(p.k_theta/2,0,2), " ", ars.fstring(theta_eq,0,2), "\n"));
+            end
         end
     end
     
@@ -526,6 +615,18 @@ function write_input(inputFile,p,origami_types,linker_types)
             "reset_timestep  0\n\n"));
     end
 
+    %%% reactions
+    if nlinker > 0
+        fprintf(f,"## Reactions\n");
+        for l_name = keys(linker_types)'
+            li = find(keys(linker_types)==l_name);
+            r12_eq = linker_types(l_name).r12_eq;
+            fixName = strcat("linker",num2str(nlinker));
+            add_bond_create(f,fixName,"linker",p.react_every,li*2-1,li*2,r12_eq,li);
+        end
+        fprintf(f,"\n");
+    end
+    
     %%% updates
     if p.nstep_prod > 0
         fprintf(f,strcat(...
@@ -534,18 +635,6 @@ function write_input(inputFile,p,origami_types,linker_types)
             "dump_modify     dump1 sort id\n",...
             "compute         comp1 all property/local btype batom1 batom2\n",...
             "dump            dump2 all local ", num2str(p.dump_every), " dump_bonds.txt index c_comp1[1] c_comp1[2] c_comp1[3]\n\n"));
-    end
-
-    %%% reactions
-    if nlinker > 0
-        fprintf(f,"## Reactions\n");
-        for l_name = keys(linker_types)'
-            li = find(keys(linker_types)==l_name);
-            r12_eq = linker_types(l_name).r12_eq;
-            fixName = strcat("linker",ars.fstring(li,len_nlinker,0,"R","zero"));
-            add_bond_create(f,fixName,"linker",p.react_every,li*2-1,li*2,r12_eq,li,len_nlinker,len_natomType);
-        end
-        fprintf(f,"\n");
     end
 
     %%% production
@@ -563,11 +652,12 @@ end
 
 
 %%% write fix bond create command
-function add_bond_create(f,fixName,groupName,react_every,atomType1,atomType2,r12_cut,bondType,len_bondType,len_natomType)
+function add_bond_create(f,fixName,groupName,react_every,atomType1,atomType2,r12_cut,bondType)
     fprintf(f,strcat(...
-        "fix             ", fixName, " ", groupName, " bond/create ", num2str(react_every), " ",...
-        ars.fstring(atomType1,len_natomType,0,"L"), " ", ars.fstring(atomType2,len_natomType,0,"L"), " ",...
-        ars.fstring(r12_cut,0,2), " ", ars.fstring(bondType,len_bondType,0,"L"), " ",...
-        "iparam 1 ", ars.fstring(atomType1,len_natomType,0,"L"), " ",...
-        "jparam 1 ", ars.fstring(atomType2,len_natomType,0,"L"), "\n"));
+        "fix             ", fixName, " ", groupName, " ",...
+        "bond/create ", num2str(react_every), " ",...
+        num2str(atomType1), " ",num2str(atomType2), " ",...
+        ars.fstring(r12_cut,0,2), " ", num2str(bondType), " ",...
+        "iparam 1 ", num2str(atomType1), " ",...
+        "jparam 1 ", num2str(atomType2), "\n"));
 end

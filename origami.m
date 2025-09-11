@@ -1,23 +1,27 @@
 %%% origami class for BTBD
 classdef origami
     properties
-        name            % origami name
-        bs              % block objects
-        nconn           % number of connections
-        conns_bis       % connection block indices
-        conns_ibs       % connection bead indices
-        conns_r12_eq    % connection equilibrium separation
-        nlink5          % number of 5p linkers
-        link5s_name     % 5p linkers linker index
-        link5s_io       % 5p linkers bead index within origami
-        nlink3          % number of 3p linker ends
-        link3s_name     % 3p linkers name
-        link3s_io       % 3p linkers bead index within origami
-        n               % total number of beads
-        r               % total positions
-        get_bi          % map io to bi
-        get_ib          % map io to ib
-        get_io          % map bi and ib to io
+        name                % origami name
+        bs                  % block objects
+        nconn               % number of connections
+        conns_bis           % connection block indices
+        conns_ibs           % connection bead indices
+        conns_r12_eq        % connection equilibrium separation
+        nangle              % number of angles
+        angles_bis          % angle block indices
+        angles_ibs          % angle bead indices
+        angles_theta_eq     % angle equilibrium theta
+        nlink5              % number of 5p linkers
+        link5s_name         % 5p linkers linker index
+        link5s_io           % 5p linkers bead index within origami
+        nlink3              % number of 3p linker ends
+        link3s_name         % 3p linkers name
+        link3s_io           % 3p linkers bead index within origami
+        n                   % total number of beads
+        r                   % total positions
+        get_bi              % map io to bi
+        get_ib              % map io to ib
+        get_io              % map bi and ib to io
     end
 
     methods
@@ -27,8 +31,12 @@ classdef origami
             o.bs = [];
             o.nconn = 0;
             o.conns_bis = [];
-            o.conns_ibs = [];
+            o.conns_ibs = zeros(2,0);
             o.conns_r12_eq = [];
+            o.nangle = 0;
+            o.angles_bis = [];
+            o.angles_ibs = [];
+            o.angles_theta_eq = [];
             o.nlink5 = 0;
             o.link5s_name = strings();
             o.link5s_io = [];
@@ -58,6 +66,18 @@ classdef origami
             ib2 = o.bs(bi2).interpret_loc(loc2);
             o.conns_ibs(:,o.nconn) = [ib1;ib2];
             o.conns_r12_eq(o.nconn) = r12_eq;
+        end
+
+
+        %%% add angle to origami
+        function o = add_angle(o,bi1,loc1,bi2,loc2,bi3,loc3,theta_eq)
+            o.nangle = o.nangle + 1;
+            o.angles_bis(:,o.nangle) = [bi1;bi2;bi3];
+            ib1 = o.bs(bi1).interpret_loc(loc1);
+            ib2 = o.bs(bi2).interpret_loc(loc2);
+            ib3 = o.bs(bi3).interpret_loc(loc3);
+            o.angles_ibs(:,o.nangle) = [ib1;ib2;ib3];
+            o.angles_theta_eq(o.nangle) = theta_eq;
         end
 
 
@@ -135,7 +155,7 @@ classdef origami
             max_attempts_place = 1000;
             U_overstretched = 100;
 
-            %%% get origami configuraiton
+            %%% configuraiton attempt loop
             disp("Looking for configuration...")
             attempts_conf = 0;
             while true
@@ -147,46 +167,69 @@ classdef origami
                 end
 
                 %%% initialize avoided positions
-                r_other_alone = [];
+                r_other_origami = [];
 
                 %%% add block
                 r_source = zeros(3,1);
-                [o.bs(1),~,r_other_alone] = o.bs(1).init_positions(p,1,r_source,0,r_other_alone);
+                [o.bs(1),~,r_other_origami] = o.bs(1).init_positions(p,r_source,0,1,r_other_origami);
 
                 %%% loop over remaining blocks
                 for bi = 2:length(o.bs)
 
                     %%% find connection between block and previous block
-                    found_connection = false;
                     for ci = 1:o.nconn
-                        if o.conns_bis(1,ci) == bi-1 && o.conns_bis(2,ci) == bi
-                            i_conn_prev = o.conns_ibs(1,ci);
-                            i_conn_curr = o.conns_ibs(2,ci);
-                            r12_eq = o.conns_r12_eq(ci);
-                            found_connection = true;
-                            break
-                        end
-                        if o.conns_bis(2,ci) == bi-1 && o.conns_bis(1,ci) == bi
-                            i_conn_prev = o.conns_ibs(2,ci);
-                            i_conn_curr = o.conns_ibs(1,ci);
-                            r12_eq = o.conns_r12_eq(ci);
-                            found_connection = true;
-                            break
+                        if o.conns_bis(2,ci) == bi
+                            if o.conns_bis(1,ci) < bi
+                                b0 = o.conns_bis(1,ci);
+                                ib_b0 = o.conns_ibs(1,ci);
+                                ib_b1 = o.conns_ibs(2,ci);
+                                r12 = o.conns_r12_eq(ci);
+                                break
+                            end
+                        elseif o.conns_bis(1,ci) == bi
+                            if o.conns_bis(2,ci) < bi
+                                b0 = o.conns_bis(2,ci);
+                                ib_b0 = o.conns_ibs(2,ci);
+                                ib_b1 = o.conns_ibs(1,ci);
+                                r12 = o.conns_r12_eq(ci);
+                                break
+                            end
+                        elseif ci == o.nconn
+                            error("Unconnected block found")
                         end
                     end
-                    if ~found_connection
-                        error("Cound not find connection between block and previous block.")
+
+                    %%% look for angle over connection
+                    r12_b0 = false;
+                    for ai = 1:o.nangle
+                        if o.angles_bis(2,ai) == b0 && o.angles_ibs(2,ai) == ib_b0
+                            if o.angles_bis(3,ai) == bi && o.angles_ibs(3,ai) == ib_b1
+                                r12_b0 = ars.unitVector(o.bs(b0).r(:,o.angles_ibs(2,ai)) - o.bs(b0).r(:,o.angles_ibs(1,ai)));
+                                theta_eq = o.angles_theta_eq(ai);
+                                break
+                            elseif o.angles_bis(1,ai) == bi && o.angles_ibs(1,ai) == ib_b1
+                                r12_b0 = ars.unitVector(o.bs(b0).r(:,o.angles_ibs(2,ai)) - o.bs(b0).r(:,o.angles_ibs(3,ai)));
+                                theta_eq = o.angles_theta_eq(ai);
+                                break
+                            end
+                        end
+                    end
+
+                    %%% if angle found, calculate direction
+                    if r12_b0
+                        r12_perp = ars.unitVector(cross(r12_b0,ars.boxMuller()));
+                        r12 = r12*(cos(180-theta_eq)*r12_b0 + sin(180-theta_eq)*r12_perp);
                     end
 
                     %%% add block
-                    r_source = o.bs(bi-1).r(:,i_conn_prev);
-                    [o.bs(bi),failed_block,r_other_alone] = o.bs(bi).init_positions(p,i_conn_curr,r_source,r12_eq,r_other_alone);
+                    r_source = o.bs(b0).r(:,ib_b0);
+                    [o.bs(bi),failed_block,r_other_origami] = o.bs(bi).init_positions(p,r_source,r12,ib_b1,r_other_origami);
                     if failed_block
                         break
                     end
                 end
 
-                %%% reset if block overlap
+                %%% reset if internal block overlap
                 if failed_block
                     attempts_conf = attempts_conf + 1;
                     continue
@@ -213,7 +256,7 @@ classdef origami
                 o.bs(bi).r = o.bs(bi).r - com_real;
             end
 
-            %%% place origami
+            %%% placement attempt loop
             disp("Attempting to place...")
             attempts_place = 0;
             while true
@@ -231,11 +274,16 @@ classdef origami
                 end
 
                 %%% get random basis and position
-                z_basis = ars.unitVector(ars.boxMuller());
-                y_basis = ars.unitVector(cross(z_basis,ars.boxMuller()));
-                x_basis = cross(y_basis,z_basis);
-                T = [x_basis,y_basis,z_basis];
-                com = (rand(3,1)-0.5)*p.dbox;
+                if attempts_place == 0
+                    T = eye(3);
+                    com = zeros(3,1);
+                else
+                    z_basis = ars.unitVector(ars.boxMuller());
+                    y_basis = ars.unitVector(cross(z_basis,ars.boxMuller()));
+                    x_basis = cross(y_basis,z_basis);
+                    T = [x_basis,y_basis,z_basis];
+                    com = (rand(3,1)-0.5)*p.dbox;
+                end
 
                 %%% rotate and move origami
                 for io = 1:o.n

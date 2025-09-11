@@ -112,42 +112,49 @@ classdef block
         end
 
 
-        %%% initialize block with bead indexed by i_conn connected to
-        %%% r_source at distance r12_conn_mag
-        function [b,failed,r_other] = init_positions(b,p,i_conn,r_source,r12_conn_mag,r_other)
+        %%% initialize block with bead indexed by _conn connected to r_source by r12_conn
+        function [b,failed,r_other] = init_positions(b,p,r_source,r12_conn,ib_conn,r_other)
             max_attempts = 100;
 
-            %%% get position of connected bead
-            r_conn = r_source + r12_conn_mag*ars.unitVector(ars.boxMuller());
+            %%% real bead internal positions
+            for ib = 1:b.n_real
+                hi = b.get_hi(ib);
+                zi = b.get_zi(ib);
+                b.r12_cart(1:2,ib) = p.r12_helix*(b.pattern(:,hi)-b.pattern(:,1));
+                b.r12_cart(3,ib) = p.r12_bead*(zi-1);
+            end
 
-            %%% attempt loop
+            %%% patch bead internal positions
+            for pi = 1:b.npatch
+                ib = b.n-b.npatch+pi;
+                theta = b.r12_pat_pol(1,pi);
+                radius = b.r12_pat_pol(2,pi);
+                z = b.r12_pat_pol(3,pi);
+                [x,y,z] = pol2cart(deg2rad(theta),radius*p.r12_helix,z*p.r12_bead);
+                b.r12_cart(:,ib) = [x;y;z];
+            end
+
+            %%% determine if connection direction should be random
+            randomize_conn_dir = false;
+            if isscalar(r12_conn)
+                randomize_conn_dir = true;
+                r12_conn_mag = norm(r12_conn);
+            end
+
+            %%% placement attempt loop
             attempts = 0;
             while true
+
+                %%% get position of connected bead
+                if randomize_conn_dir
+                    r12_conn = r12_conn_mag*ars.unitVector(ars.boxMuller());
+                end
+                r_start = r_source + r12_conn;
 
                 %%% check block attempts
                 if attempts == max_attempts
                     failed = true;
                     return
-                end
-
-                %%% real bead internal positions
-                for ib = 1:b.n_real
-                    hi = b.get_hi(ib);
-                    zi = b.get_zi(ib);
-                    r12 = zeros(3,1);
-                    r12(1:2) = p.r12_helix*(b.pattern(:,hi)-b.pattern(:,1));
-                    r12(3) = p.r12_bead*(zi-1);
-                    b.r12_cart(:,ib) = r12;
-                end
-    
-                %%% patch bead internal positions
-                for pi = 1:b.npatch
-                    ib = b.n-b.npatch+pi;
-                    theta = b.r12_pat_pol(1,pi);
-                    radius = b.r12_pat_pol(2,pi);
-                    z = b.r12_pat_pol(3,pi);
-                    [x,y,z] = pol2cart(deg2rad(theta),radius*p.r12_helix,z*p.r12_bead);
-                    b.r12_cart(:,ib) = [x;y;z];
                 end
     
                 %%% real bead absolute positions
@@ -155,7 +162,7 @@ classdef block
                 y_basis = ars.unitVector(cross(z_basis,ars.boxMuller()));
                 x_basis = cross(y_basis,z_basis);
                 T = [x_basis,y_basis,z_basis];
-                com = r_conn - T*b.r12_cart(:,i_conn);
+                com = r_start - T*b.r12_cart(:,ib_conn);
                 b.r = zeros(3,b.n);
                 for ib = 1:b.n_real
                     b.r(:,ib) = com + T*b.r12_cart(:,ib);
