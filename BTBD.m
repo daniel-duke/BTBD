@@ -1,6 +1,6 @@
 %%% Housekeeping
 clc; clear; close all;
-rng(42)
+rng(41)
 
 %%% To Do
 % replace bond write/break with react if unlinking is desired.
@@ -55,7 +55,7 @@ rng(42)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% read input
-inFile = "./designs/triarmV2.txt";
+inFile = "./designs/triarmV3.txt";
 [os,origami_types,linker_types] = read_input(inFile);
 
 %%% output parameters
@@ -253,8 +253,8 @@ function [os,origami_types,linker_types] = read_input(inFile)
                             origamis(extract{1}) = origamis(extract{1}).add_conn(str2double(extract{3}),extract{4},str2double(extract{5}),extract{6},str2double(extract{7}));
                             origami_types(extract{1}).conns_r12_eq = [ origami_types(extract{1}).conns_r12_eq str2double(extract{7}) ];
                         case 'angle'
-                            origamis(extract{1}) = origamis(extract{1}).add_angle(str2double(extract{3}),extract{4},str2double(extract{5}),extract{6},str2double(extract{7}),extract{8},str2double(extract{9}));
-                            origami_types(extract{1}).angles_theta_eq = [ origami_types(extract{1}).angles_theta_eq str2double(extract{9}) ];
+                            origamis(extract{1}) = origamis(extract{1}).add_angle(str2double(extract{3}),extract{4},str2double(extract{5}),extract{6},str2double(extract{7}),extract{8},str2double(extract{9}),extract{10},str2double(extract{11}));
+                            origami_types(extract{1}).angles_theta_eq = [ origami_types(extract{1}).angles_theta_eq str2double(extract{11}) ];
                         otherwise
                             error("Unknown origami parameter: " + extract{2})
                     end
@@ -381,29 +381,22 @@ function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,dbox)
             ois = find([os.name]==o_name);
             for ai = 1:length(origami_types(o_name).angles_theta_eq)
                 for oi = ois
-                    if os(oi).angles_bis(1,ai) == os(oi).angles_bis(2,ai)
-                        if os(oi).angles_bis(2,ai) == os(oi).angles_bis(3,ai)
-                            error("Cannot angle must span two rigid bodies.")
-                        end
-                        iu1 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(1,ai), os(oi).angles_ibs(1,ai) ) );
-                        iu2 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(2,ai), os(oi).angles_ibs(2,ai) ) );
-                        bond_count = bond_count + 1;
-                        bonds(1,bond_count) = bond_type;
-                        bonds(2,bond_count) = iu1;
-                        bonds(3,bond_count) = iu2;
-                    elseif os(oi).angles_bis(2,ai) == os(oi).angles_bis(3,ai)
-                        iu2 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(2,ai), os(oi).angles_ibs(2,ai) ) );
-                        iu3 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(3,ai), os(oi).angles_ibs(3,ai) ) );
-                        bond_count = bond_count + 1;
-                        bonds(1,bond_count) = bond_type;
-                        bonds(2,bond_count) = iu2;
-                        bonds(3,bond_count) = iu3;
-                    end
+                    iu1 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(1,ai), os(oi).angles_ibs(1,ai) ) );
+                    iu2 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(2,ai), os(oi).angles_ibs(2,ai) ) );
+                    bond_count = bond_count + 1;
+                    bonds(1,bond_count) = bond_type;
+                    bonds(2,bond_count) = iu1;
+                    bonds(3,bond_count) = iu2;
+                    iu3 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(3,ai), os(oi).angles_ibs(3,ai) ) );
+                    iu4 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(4,ai), os(oi).angles_ibs(4,ai) ) );
+                    bond_count = bond_count + 1;
+                    bonds(1,bond_count) = bond_type;
+                    bonds(2,bond_count) = iu3;
+                    bonds(3,bond_count) = iu4;
                 end
             end
         end
     end
-
 
     %%% compile angle info
     angles = zeros(4,nangle);
@@ -415,14 +408,20 @@ function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,dbox)
             for ai = 1:length(origami_types(o_name).angles_theta_eq)
                 angle_type = angle_type + 1;
                 for oi = ois
-                    angle_count = angle_count + 1;
                     iu1 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(1,ai), os(oi).angles_ibs(1,ai) ) );
                     iu2 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(2,ai), os(oi).angles_ibs(2,ai) ) );
                     iu3 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(3,ai), os(oi).angles_ibs(3,ai) ) );
+                    iu4 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(4,ai), os(oi).angles_ibs(4,ai) ) );
+                    angle_count = angle_count + 1;
                     angles(1,angle_count) = angle_type;
                     angles(2,angle_count) = iu1;
                     angles(3,angle_count) = iu2;
                     angles(4,angle_count) = iu3;
+                    angle_count = angle_count + 1;
+                    angles(1,angle_count) = angle_type;
+                    angles(2,angle_count) = iu2;
+                    angles(3,angle_count) = iu3;
+                    angles(4,angle_count) = iu4;
                 end
             end
         end

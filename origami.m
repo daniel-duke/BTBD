@@ -31,7 +31,7 @@ classdef origami
             o.bs = [];
             o.nconn = 0;
             o.conns_bis = [];
-            o.conns_ibs = zeros(2,0);
+            o.conns_ibs = [];
             o.conns_r12_eq = [];
             o.nangle = 0;
             o.angles_bis = [];
@@ -70,13 +70,14 @@ classdef origami
 
 
         %%% add angle to origami
-        function o = add_angle(o,bi1,loc1,bi2,loc2,bi3,loc3,theta_eq)
+        function o = add_angle(o,bi1,loc1,bi2,loc2,bi3,loc3,bi4,loc4,theta_eq)
             o.nangle = o.nangle + 1;
-            o.angles_bis(:,o.nangle) = [bi1;bi2;bi3];
+            o.angles_bis(:,o.nangle) = [bi1;bi2;bi3;bi4];
             ib1 = o.bs(bi1).interpret_loc(loc1);
             ib2 = o.bs(bi2).interpret_loc(loc2);
             ib3 = o.bs(bi3).interpret_loc(loc3);
-            o.angles_ibs(:,o.nangle) = [ib1;ib2;ib3];
+            ib4 = o.bs(bi4).interpret_loc(loc4);
+            o.angles_ibs(:,o.nangle) = [ib1;ib2;ib3;ib4];
             o.angles_theta_eq(o.nangle) = theta_eq;
         end
 
@@ -169,21 +170,25 @@ classdef origami
                 %%% initialize avoided positions
                 r_other_origami = [];
 
-                %%% add block
+                %%% add first block
                 r_source = zeros(3,1);
-                [o.bs(1),~,r_other_origami] = o.bs(1).init_positions(p,r_source,0,1,r_other_origami);
+                o.bs(1) = o.bs(1).init_positions_internal(p);
+                [o.bs(1),~,r_other_origami] = o.bs(1).init_positions(p,r_source,0,1,0,r_other_origami);
 
                 %%% loop over remaining blocks
                 for bi = 2:length(o.bs)
 
-                    %%% find connection between block and previous block
+                    %%% set internal positions
+                    o.bs(bi) = o.bs(bi).init_positions_internal(p);
+
+                    %%% find first connection between block and any previous block
                     for ci = 1:o.nconn
                         if o.conns_bis(2,ci) == bi
                             if o.conns_bis(1,ci) < bi
                                 b0 = o.conns_bis(1,ci);
                                 ib_b0 = o.conns_ibs(1,ci);
                                 ib_b1 = o.conns_ibs(2,ci);
-                                r12 = o.conns_r12_eq(ci);
+                                r12_conn = o.conns_r12_eq(ci);
                                 break
                             end
                         elseif o.conns_bis(1,ci) == bi
@@ -191,7 +196,7 @@ classdef origami
                                 b0 = o.conns_bis(2,ci);
                                 ib_b0 = o.conns_ibs(2,ci);
                                 ib_b1 = o.conns_ibs(1,ci);
-                                r12 = o.conns_r12_eq(ci);
+                                r12_conn = o.conns_r12_eq(ci);
                                 break
                             end
                         elseif ci == o.nconn
@@ -206,24 +211,40 @@ classdef origami
                             if o.angles_bis(3,ai) == bi && o.angles_ibs(3,ai) == ib_b1
                                 r12_b0 = ars.unitVector(o.bs(b0).r(:,o.angles_ibs(2,ai)) - o.bs(b0).r(:,o.angles_ibs(1,ai)));
                                 theta_eq = o.angles_theta_eq(ai);
+                                ib_b1_end = o.angles_ibs(4,ai);
                                 break
-                            elseif o.angles_bis(1,ai) == bi && o.angles_ibs(1,ai) == ib_b1
-                                r12_b0 = ars.unitVector(o.bs(b0).r(:,o.angles_ibs(2,ai)) - o.bs(b0).r(:,o.angles_ibs(3,ai)));
+                            end
+                        end
+                        if o.angles_bis(3,ai) == b0 && o.angles_ibs(3,ai) == ib_b0
+                            if o.angles_bis(2,ai) == bi && o.angles_ibs(2,ai) == ib_b1
+                                r12_b0 = ars.unitVector(o.bs(b0).r(:,o.angles_ibs(4,ai)) - o.bs(b0).r(:,o.angles_ibs(3,ai)));
                                 theta_eq = o.angles_theta_eq(ai);
+                                ib_b1_end = o.angles_ibs(1,ai);
                                 break
                             end
                         end
                     end
 
-                    %%% if angle found, calculate direction
-                    if r12_b0
+                    %%% if angle found, calculate directions
+                    if theta_eq
+
+                        %%% connection direction
                         r12_perp = ars.unitVector(cross(r12_b0,ars.boxMuller()));
-                        r12 = r12*(cos(180-theta_eq)*r12_b0 + sin(180-theta_eq)*r12_perp);
+                        r12_conn = r12_conn*(cos(180-theta_eq)*r12_b0 + sin(180-theta_eq)*r12_perp);
+
+                        %%% block direction
+                        r12_perp = ars.unitVector(cross(r12_conn,ars.boxMuller()));
+                        r12_bi = cos(180-theta_eq)*ars.unitVector(r12_conn) + sin(180-theta_eq)*r12_perp;
+                        r12_bi_block = o.bs(bi).r12_cart(:,ib_b1_end) - o.bs(bi).r12_cart(:,ib_b1);
+                        k = cross(r12_bi,r12_bi_block); s = norm(k); d = dot(r12_bi,r12_bi_block);
+                        K = [0 -k(3) k(2); k(3) 0 -k(1); -k(2) k(1) 0];
+                        R = eye(3) + K + K^2*((1-d)/(s^2+eps));
+                        r12_block = R' * [0;0;1];
                     end
 
                     %%% add block
                     r_source = o.bs(b0).r(:,ib_b0);
-                    [o.bs(bi),failed_block,r_other_origami] = o.bs(bi).init_positions(p,r_source,r12,ib_b1,r_other_origami);
+                    [o.bs(bi),failed_block,r_other_origami] = o.bs(bi).init_positions(p,r_source,r12_conn,ib_b1,r12_block,r_other_origami);
                     if failed_block
                         break
                     end

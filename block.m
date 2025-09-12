@@ -112,9 +112,8 @@ classdef block
         end
 
 
-        %%% initialize block with bead indexed by _conn connected to r_source by r12_conn
-        function [b,failed,r_other] = init_positions(b,p,r_source,r12_conn,ib_conn,r_other)
-            max_attempts = 100;
+        %%% set the positions of the block within its own coordinate system
+        function b = init_positions_internal(b,p)
 
             %%% real bead internal positions
             for ib = 1:b.n_real
@@ -133,6 +132,12 @@ classdef block
                 [x,y,z] = pol2cart(deg2rad(theta),radius*p.r12_helix,z*p.r12_bead);
                 b.r12_cart(:,ib) = [x;y;z];
             end
+        end
+
+
+        %%% initialize block with direction r12_block bead indexed by ib_conn connected by r12_conn to r_source 
+        function [b,failed,r_other] = init_positions(b,p,r_source,r12_conn,ib_conn,r12_block,r_other)
+            max_attempts = 100;
 
             %%% determine if connection direction should be random
             randomize_conn_dir = false;
@@ -141,9 +146,21 @@ classdef block
                 r12_conn_mag = norm(r12_conn);
             end
 
+            %%% determine if block direction should be random
+            randomize_block_dir = false;
+            if r12_block == 0
+                randomize_block_dir = true;
+            end
+
             %%% placement attempt loop
             attempts = 0;
             while true
+
+                %%% check block attempts
+                if attempts == max_attempts
+                    failed = true;
+                    return
+                end
 
                 %%% get position of connected bead
                 if randomize_conn_dir
@@ -151,14 +168,13 @@ classdef block
                 end
                 r_start = r_source + r12_conn;
 
-                %%% check block attempts
-                if attempts == max_attempts
-                    failed = true;
-                    return
+                %%% get direction of block
+                if randomize_block_dir
+                    r12_block = ars.unitVector(ars.boxMuller());
                 end
     
                 %%% real bead absolute positions
-                z_basis = ars.unitVector(ars.boxMuller());
+                z_basis = ars.unitVector(r12_block);
                 y_basis = ars.unitVector(cross(z_basis,ars.boxMuller()));
                 x_basis = cross(y_basis,z_basis);
                 T = [x_basis,y_basis,z_basis];
