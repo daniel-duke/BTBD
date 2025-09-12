@@ -8,12 +8,11 @@ classdef block
         hiM             % helix index for middle connections
         nhelix          % number of helices
         n_helix         % number of beads in each helix
+        r_internal      % internal positions (in bead units)
         npatch          % number of patches
         patches         % names of patches
-        r12_pat_pol     % patch internal positions (theta,radius,z)
-        r12_cart        % internal positions of all beads (x,y,z)
         n_real          % number of real (structural) beads
-        n               % number of total beads
+        n               % number of total beads (including patches)
         r               % bead positions
         get_hi          % map ib to hi
         get_zi          % map ib to zi
@@ -30,12 +29,11 @@ classdef block
                 b.n_helix = n_helix;
                 b.npatch = 0;
                 b.patches = {};
-                b.r12_pat_pol = [];
-                b.r12_cart = [];
                 b.n_real = b.calc_nbead;
                 b.n = b.n_real;
                 b.r = zeros(3,b.n);
                 [b.get_hi,b.get_zi,b.get_ib] = map_indices(b);
+                b.r_internal = init_positions_internal(b);
             end
         end
 
@@ -43,15 +41,14 @@ classdef block
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         %%% Functions %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
- 
+
         %%% add patch to block
-        function b = add_patch(b,name,theta,radius,z)
-            b.patches{end+1} = name;
-            b.n = b.n + 1;
-            b.r = [b.r zeros(3,1)];
-            b.r12_pat_pol = [b.r12_pat_pol [theta;radius;z]];
-            b.r12_cart = [b.r12_cart zeros(3,1)];
+        function b = add_patch(b,name,x,y,z)
             b.npatch = b.npatch + 1;
+            b.patches{b.npatch} = name;
+            b.n = b.n + 1;
+            b.r(:,b.n) = zeros(3,1);
+            b.r_internal(:,b.n) = [x;y;z];
         end
 
 
@@ -85,6 +82,18 @@ classdef block
         end
 
 
+        %%% set the positions of the block within its own coordinate system
+        function r_internal = init_positions_internal(b)
+            r_internal = zeros(3,b.n);
+            for ib = 1:b.n_real
+                hi = b.get_hi(ib);
+                zi = b.get_zi(ib);
+                r_internal(1:2,ib) = b.pattern(:,hi);
+                r_internal(3,ib) = zi-1;
+            end
+        end
+
+
         %%% get block index from location
         function ib = interpret_loc(b,loc)
             if loc(1) == 'P'
@@ -112,31 +121,8 @@ classdef block
         end
 
 
-        %%% set the positions of the block within its own coordinate system
-        function b = init_positions_internal(b,p)
-
-            %%% real bead internal positions
-            for ib = 1:b.n_real
-                hi = b.get_hi(ib);
-                zi = b.get_zi(ib);
-                b.r12_cart(1:2,ib) = p.r12_helix*(b.pattern(:,hi)-b.pattern(:,1));
-                b.r12_cart(3,ib) = p.r12_bead*(zi-1);
-            end
-
-            %%% patch bead internal positions
-            for pi = 1:b.npatch
-                ib = b.n-b.npatch+pi;
-                theta = b.r12_pat_pol(1,pi);
-                radius = b.r12_pat_pol(2,pi);
-                z = b.r12_pat_pol(3,pi);
-                [x,y,z] = pol2cart(deg2rad(theta),radius*p.r12_helix,z*p.r12_bead);
-                b.r12_cart(:,ib) = [x;y;z];
-            end
-        end
-
-
         %%% initialize block with direction r12_block bead indexed by ib_conn connected by r12_conn to r_source 
-        function [b,failed,r_other] = init_positions(b,p,r_source,r12_conn,ib_conn,r12_block,r_other)
+        function [b,failed,r_other] = init_positions(b,p,r_source,r12_conn,ib_conn,R,r_other)
             max_attempts = 100;
 
             %%% determine if connection direction should be random
@@ -148,9 +134,12 @@ classdef block
 
             %%% determine if block direction should be random
             randomize_block_dir = false;
-            if r12_block == 0
+            if R == 0
                 randomize_block_dir = true;
             end
+
+            %%% for transforming bead units to real units
+            units_bead2real = [p.r12_helix;p.r12_helix;p.r12_bead];
 
             %%% placement attempt loop
             attempts = 0;
@@ -170,18 +159,17 @@ classdef block
 
                 %%% get direction of block
                 if randomize_block_dir
-                    r12_block = ars.unitVector(ars.boxMuller());
+                    z_basis = ars.unitVector(ars.boxMuller());
+                    y_basis = ars.unitVector(cross(z_basis,ars.boxMuller()));
+                    x_basis = cross(y_basis,z_basis);
+                    R = [x_basis,y_basis,z_basis]';
                 end
     
                 %%% real bead absolute positions
-                z_basis = ars.unitVector(r12_block);
-                y_basis = ars.unitVector(cross(z_basis,ars.boxMuller()));
-                x_basis = cross(y_basis,z_basis);
-                T = [x_basis,y_basis,z_basis];
-                com = r_start - T*b.r12_cart(:,ib_conn);
+                com = r_start - R'*(b.r_internal(:,ib_conn).*units_bead2real);
                 b.r = zeros(3,b.n);
                 for ib = 1:b.n_real
-                    b.r(:,ib) = com + T*b.r12_cart(:,ib);
+                    b.r(:,ib) = com + R'*(b.r_internal(:,ib).*units_bead2real);
                     overlap = ars.checkOverlap(b.r(:,ib),r_other,p.r12_cut_WCA,p.dbox);
                     if overlap
                         break
@@ -197,7 +185,7 @@ classdef block
                 %%% patch bead absolute positions
                 for pi = 1:b.npatch
                     ib = b.n-b.npatch+pi;
-                    b.r(:,ib) = com + T*b.r12_cart(:,ib);
+                    b.r(:,ib) = com + R'*(b.r_internal(:,ib).*units_bead2real);
                 end
 
                 %%% block successfully initiated

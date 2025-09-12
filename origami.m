@@ -148,13 +148,16 @@ classdef origami
             end
             failed = false;
         end
-        
+
 
         %%% initialize origami positions
         function [o,failed,r_other] = init_positions(o,p,r_other)
             max_attempts_conf = 1000;
             max_attempts_place = 1000;
             U_overstretched = 100;
+
+            %%% for transforming bead units to real units
+            units_bead2real = [p.r12_helix;p.r12_helix;p.r12_bead];
 
             %%% configuraiton attempt loop
             disp("Looking for configuration...")
@@ -172,30 +175,26 @@ classdef origami
 
                 %%% add first block
                 r_source = zeros(3,1);
-                o.bs(1) = o.bs(1).init_positions_internal(p);
                 [o.bs(1),~,r_other_origami] = o.bs(1).init_positions(p,r_source,0,1,0,r_other_origami);
 
                 %%% loop over remaining blocks
                 for bi = 2:length(o.bs)
-
-                    %%% set internal positions
-                    o.bs(bi) = o.bs(bi).init_positions_internal(p);
 
                     %%% find first connection between block and any previous block
                     for ci = 1:o.nconn
                         if o.conns_bis(2,ci) == bi
                             if o.conns_bis(1,ci) < bi
                                 b0 = o.conns_bis(1,ci);
-                                ib_b0 = o.conns_ibs(1,ci);
-                                ib_b1 = o.conns_ibs(2,ci);
+                                ib_conn_b0 = o.conns_ibs(1,ci);
+                                ib_conn_b1 = o.conns_ibs(2,ci);
                                 r12_conn = o.conns_r12_eq(ci);
                                 break
                             end
                         elseif o.conns_bis(1,ci) == bi
                             if o.conns_bis(2,ci) < bi
                                 b0 = o.conns_bis(2,ci);
-                                ib_b0 = o.conns_ibs(2,ci);
-                                ib_b1 = o.conns_ibs(1,ci);
+                                ib_conn_b0 = o.conns_ibs(2,ci);
+                                ib_conn_b1 = o.conns_ibs(1,ci);
                                 r12_conn = o.conns_r12_eq(ci);
                                 break
                             end
@@ -204,47 +203,130 @@ classdef origami
                         end
                     end
 
-                    %%% look for angle over connection
-                    r12_b0 = false;
+                    %%% look for second connection between the two blocks
+                    r12_eq_conn2 = 0;
+                    for ci = ci+1:o.nconn
+                        if o.conns_bis(2,ci) == bi
+                            if o.conns_bis(1,ci) == b0
+                                ib_conn2_b0 = o.conns_ibs(1,ci);
+                                ib_conn2_b1 = o.conns_ibs(2,ci);
+                                r12_eq_conn2 = o.conns_r12_eq(ci);
+                                break
+                            end
+                        elseif o.conns_bis(1,ci) == bi
+                            if o.conns_bis(2,ci) == b0
+                                ib_conn2_b0 = o.conns_ibs(2,ci);
+                                ib_conn2_b1 = o.conns_ibs(1,ci);
+                                r12_eq_conn2 = o.conns_r12_eq(ci);
+                                break
+                            end
+                        elseif ci == o.nconn
+                            error("Unconnected block found")
+                        end
+                    end
+
+                    %%% look for angle over first connection
+                    theta_eq = 0;
                     for ai = 1:o.nangle
-                        if o.angles_bis(2,ai) == b0 && o.angles_ibs(2,ai) == ib_b0
-                            if o.angles_bis(3,ai) == bi && o.angles_ibs(3,ai) == ib_b1
-                                r12_b0 = ars.unitVector(o.bs(b0).r(:,o.angles_ibs(2,ai)) - o.bs(b0).r(:,o.angles_ibs(1,ai)));
+                        if o.angles_bis(2,ai) == b0 && o.angles_ibs(2,ai) == ib_conn_b0
+                            if o.angles_bis(3,ai) == bi && o.angles_ibs(3,ai) == ib_conn_b1
+                                r12_patches_b0 = o.bs(b0).r(:,o.angles_ibs(2,ai)) - o.bs(b0).r(:,o.angles_ibs(1,ai));
                                 theta_eq = o.angles_theta_eq(ai);
-                                ib_b1_end = o.angles_ibs(4,ai);
+                                ib_end_b1 = o.angles_ibs(4,ai);
                                 break
                             end
                         end
-                        if o.angles_bis(3,ai) == b0 && o.angles_ibs(3,ai) == ib_b0
-                            if o.angles_bis(2,ai) == bi && o.angles_ibs(2,ai) == ib_b1
-                                r12_b0 = ars.unitVector(o.bs(b0).r(:,o.angles_ibs(4,ai)) - o.bs(b0).r(:,o.angles_ibs(3,ai)));
+                        if o.angles_bis(3,ai) == b0 && o.angles_ibs(3,ai) == ib_conn_b0
+                            if o.angles_bis(2,ai) == bi && o.angles_ibs(2,ai) == ib_conn_b1
+                                r12_patches_b0 = o.bs(b0).r(:,o.angles_ibs(4,ai)) - o.bs(b0).r(:,o.angles_ibs(3,ai));
                                 theta_eq = o.angles_theta_eq(ai);
-                                ib_b1_end = o.angles_ibs(1,ai);
+                                ib_end_b1 = o.angles_ibs(1,ai);
                                 break
                             end
                         end
                     end
 
                     %%% if angle found, calculate directions
-                    if theta_eq
+                    R = 0;
+                    if theta_eq > 0
 
                         %%% connection direction
-                        r12_perp = ars.unitVector(cross(r12_b0,ars.boxMuller()));
-                        r12_conn = r12_conn*(cos(180-theta_eq)*r12_b0 + sin(180-theta_eq)*r12_perp);
+                        r12_perp = ars.unitVector(cross(r12_patches_b0,ars.boxMuller()));
+                        r12_conn = r12_conn*(cos(180-theta_eq)*ars.unitVector(r12_patches_b0) + sin(180-theta_eq)*r12_perp);
 
-                        %%% block direction
-                        r12_perp = ars.unitVector(cross(r12_conn,ars.boxMuller()));
-                        r12_bi = cos(180-theta_eq)*ars.unitVector(r12_conn) + sin(180-theta_eq)*r12_perp;
-                        r12_bi_block = o.bs(bi).r12_cart(:,ib_b1_end) - o.bs(bi).r12_cart(:,ib_b1);
-                        k = cross(r12_bi,r12_bi_block); s = norm(k); d = dot(r12_bi,r12_bi_block);
-                        K = [0 -k(3) k(2); k(3) 0 -k(1); -k(2) k(1) 0];
-                        R = eye(3) + K + K^2*((1-d)/(s^2+eps));
-                        r12_block = R' * [0;0;1];
+                        %%% random block direction
+                        if r12_eq_conn2 == 0
+                            r12_perp = ars.unitVector(cross(r12_conn,ars.boxMuller()));
+                            r12_patches_bi = cos(180-theta_eq)*ars.unitVector(r12_conn) + sin(180-theta_eq)*r12_perp;
+                            r12_patches_bi_internal = ars.unitVector(o.bs(bi).r_internal(:,ib_end_b1).*units_bead2real - o.bs(bi).r_internal(:,ib_conn_b1).*units_bead2real);
+                            R = o.getRotation(r12_patches_bi,r12_patches_bi_internal,0);
+                        
+                        %%% fully defined
+                        else
+                            r12_perp = ars.unitVector(cross(r12_conn,ars.boxMuller()));
+                            r12_patches_bi = cos(180-theta_eq)*ars.unitVector(r12_conn) + sin(180-theta_eq)*r12_perp;
+                            r12_patches_bi_internal = ars.unitVector(o.bs(bi).r_internal(:,ib_end_b1).*units_bead2real - o.bs(bi).r_internal(:,ib_conn_b1).*units_bead2real);
+
+                            %%% optimize
+                            phis = 0;
+                            step = 10;
+                            tolerance = 0.001;
+                            max_iterations = 1000;
+                            iteration = 0;
+                            initializing = true;
+                            while true
+                                if iteration == max_iterations
+                                    error("Cannot find configuraiton that satisfies all connections and angles.")
+                                end
+                                iteration = iteration + 1;
+                                R = o.getRotation(r12_patches_bi,r12_patches_bi_internal,phis(end));
+                                r_conn_bi = o.bs(b0).r(:,ib_conn_b0) + r12_conn;
+                                r_conn_bi_internal = o.bs(bi).r_internal(:,ib_conn_b1).*units_bead2real;
+                                r_conn2_bi_internal = o.bs(bi).r_internal(:,ib_conn2_b1).*units_bead2real;
+                                r_conn2_bi = r_conn_bi + R'*(r_conn2_bi_internal-r_conn_bi_internal);
+                                r_conn2_b0 = o.bs(b0).r(:,ib_conn2_b0);
+                                d = norm(r_conn2_bi-r_conn2_b0);
+                                if initializing == true
+                                    if phis(end) == 0
+                                        ds = d;
+                                        phis = ars.myHorzcat(phis, phis(end)+step);
+                                    else
+                                        ds = ars.myHorzcat(ds, d);
+                                        slopes = (ds(end)-ds(end-1))/step;
+                                        if slopes > 0
+                                            step = -step;
+                                        end
+                                        phis = ars.myHorzcat(phis, phis(end)+step);
+                                        initializing = false;
+                                    end
+                                else
+                                    if abs(d-r12_eq_conn2) < tolerance
+                                        break
+                                    elseif d < r12_eq_conn2
+                                        phis = ars.myHorzcat(phis, phis(end-1));
+                                        ds = ars.myHorzcat(ds, ds(end-1));
+                                        slopes = ars.myHorzcat(slopes, slopes(end-1));
+                                        ds = ars.myHorzcat(ds, ds(end-1));
+                                        slopes = ars.myHorzcat(slopes, slopes(end-1));
+                                        step = step/2;
+                                        phis = ars.myHorzcat(phis, phis(end)+step);
+                                    else
+                                        ds = ars.myHorzcat(ds, d);
+                                        slope = (ds(end)-ds(end-1))/step;
+                                        slopes = ars.myHorzcat(slopes, slope);
+                                        if sign(slopes(end)) ~= sign(slopes(end-1))
+                                            step = -step/2;
+                                        end
+                                        phis = ars.myHorzcat(phis, phis(end)+step);
+                                    end
+                                end
+                            end
+                        end
                     end
 
                     %%% add block
-                    r_source = o.bs(b0).r(:,ib_b0);
-                    [o.bs(bi),failed_block,r_other_origami] = o.bs(bi).init_positions(p,r_source,r12_conn,ib_b1,r12_block,r_other_origami);
+                    r_source = o.bs(b0).r(:,ib_conn_b0);
+                    [o.bs(bi),failed_block,r_other_origami] = o.bs(bi).init_positions(p,r_source,r12_conn,ib_conn_b1,R,r_other_origami);
                     if failed_block
                         break
                     end
@@ -267,15 +349,15 @@ classdef origami
             end
 
             %%% center positions
-            r_real = [];
-            for bi = 1:length(o.bs)
-                r_real_block = o.bs(bi).r(:,1:o.bs(bi).n_real);
-                r_real = ars.myHorzcat(r_real, r_real_block);
-            end
-            com_real = ars.calcCOM(r_real, p.dbox);
-            for bi = 1:length(o.bs)
-                o.bs(bi).r = o.bs(bi).r - com_real;
-            end
+            % r_real = [];
+            % for bi = 1:length(o.bs)
+            %     r_real_block = o.bs(bi).r(:,1:o.bs(bi).n_real);
+            %     r_real = ars.myHorzcat(r_real, r_real_block);
+            % end
+            % com_real = ars.calcCOM(r_real, p.dbox);
+            % for bi = 1:length(o.bs)
+            %     o.bs(bi).r = o.bs(bi).r - com_real;
+            % end
 
             %%% placement attempt loop
             disp("Attempting to place...")
@@ -338,5 +420,25 @@ classdef origami
             end
         end
         
+    end
+    methods (Static)
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %%% Static Functions %%%%%%%%%%%%%%%%%%%%%%%%%
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+        function R = getRotation(v_f1,v_f2,phi)
+            a = v_f1/norm(v_f1); 
+            b = v_f2/norm(v_f2);
+            ref = [0;0;1];
+            ua = ref - a*(a'*ref); ua = ua/norm(ua); va = cross(a,ua);
+            ub = ref - b*(b'*ref); ub = ub/norm(ub); vb = cross(b,ub);
+            A = [a ua va]; 
+            B = [b ub vb];
+            R0 = B*A';
+            u = b; U = [0 -u(3) u(2); u(3) 0 -u(1); -u(2) u(1) 0];
+            Rspin = eye(3) + sind(phi)*U + (1-cosd(phi))*(U*U);
+            R = Rspin * R0;
+        end
     end
 end

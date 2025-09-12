@@ -2,9 +2,9 @@
 block B1        1HB 11              % pattern, height
 
 %%% patches
-patch CM        B1 0  1 0           % block type, theta, radius, z
-patch L1        B1 0  1 1           % block type, theta, radius, z
-patch L2        B1 0  1 9           % block type, theta, radius, z
+patch CM        B1 1 0 0           % block type, x, y, z
+patch L1        B1 1 0 1           % block type, x, y, z
+patch L2        B1 1 0 9           % block type, x, y, z
 
 %%% origami
 origami O1      1                   % count
