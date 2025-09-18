@@ -45,7 +45,7 @@ classdef parameters
                 p.r12_bead = r12_bead;
                 p.k_x_conn = 6.96*k_x_conn;
                 p.k_x_linker = 6.96*k_x_linker;
-                p.k_theta = k_theta;
+                p.k_theta = 6.96*k_theta;
             end
         end
     end

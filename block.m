@@ -17,7 +17,6 @@ classdef block
         get_hi          % map ib to hi
         get_zi          % map ib to zi
         get_ib          % map hi and zi to ib
-
     end
 
     methods
@@ -121,7 +120,7 @@ classdef block
         end
 
 
-        %%% initialize block with direction r12_block bead indexed by ib_conn connected by r12_conn to r_source 
+        %%% initialize block with bead indexed by ib_conn connected by r12_conn to r_source 
         function [b,failed,r_other] = init_positions(b,p,r_source,r12_conn,ib_conn,R,r_other)
             max_attempts = 100;
 
@@ -153,14 +152,14 @@ classdef block
 
                 %%% get position of connected bead
                 if randomize_conn_dir
-                    r12_conn = r12_conn_mag*ars.unitVector(ars.boxMuller());
+                    r12_conn = r12_conn_mag*ars.randUnitVec();
                 end
                 r_start = r_source + r12_conn;
 
                 %%% get direction of block
                 if randomize_block_dir
-                    z_basis = ars.unitVector(ars.boxMuller());
-                    y_basis = ars.unitVector(cross(z_basis,ars.boxMuller()));
+                    z_basis = ars.randUnitVec();
+                    y_basis = ars.unitVector(cross(z_basis,ars.randUnitVec()));
                     x_basis = cross(y_basis,z_basis);
                     R = [x_basis,y_basis,z_basis]';
                 end

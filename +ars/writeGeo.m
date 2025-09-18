@@ -1,6 +1,7 @@
 %%% write lammps geometry file
 function writeGeo(geoFile,dbox,atoms,bonds,angles,options)
 
+    %%% set arguments
     arguments
         geoFile string
         dbox double

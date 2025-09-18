@@ -4,8 +4,8 @@ rng(42)
 
 %%% To Do
 % replace bond write/break with react if unlinking is desired.
-% add option to define origami initial configuration.
 % add option to set linker and connection spring constant.
+% add option to initialize block from two flexible connections.
 
 %%% Notation
 % r - position vector
@@ -59,17 +59,17 @@ inFile = "./designs/triarmV3.txt";
 [os,origami_types,linker_types] = read_input(inFile);
 
 %%% output parameters
-outFold = "/Users/dduke/Files/block_tether/network/active/";
+outFold = "/Users/dduke/Files/block_tether/network/experiment/active/";
 nsim = 1;
 
 %%% simulation parameters
 nstep_eq        = 1E4;      % steps         - if and how long to equilibrate/shrink
 shrink_ratio    = 1;        % none          - box compression (final/initial)
-nstep_prod      = 1E7;      % steps         - if and how long to run producton
+nstep_prod      = 1E6;      % steps         - if and how long to run producton
 dump_every      = 1E4;      % steps         - how often to write to output
 
 %%% computational parameters
-dt              = 0.01;     % ns            - time step
+dt              = 0.015;     % ns            - time step
 dbox            = 150;      % nm            - periodic boundary diameter
 verlet_skin     = 4;        % nm            - width of neighbor list skin
 neigh_every     = 1E1;      % steps         - how often to consider updating neighbor list
@@ -83,7 +83,7 @@ r12_bead        = 5;        % nm            - helix separation
 r12_helix       = 5;        % nm            - bead separation
 k_x_conn        = 1;        % kcal/mol/nm2  - connection spring constant
 k_x_linker      = 1;        % kcal/mol/nm2  - linker spring constant
-k_theta         = 100;      % kcal/mol/rad2 - angle spring constant
+k_theta         = 0;        % kcal/mol/rad2 - angle spring constant
 
 %%% create parameters class
 p = parameters(nstep_eq,shrink_ratio,nstep_prod,dump_every,...
@@ -307,7 +307,7 @@ function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,dbox)
 
     %%% initialize mass info
     natomType = 2 + nlinker*2;
-    masses = ones(1,natomType);
+    masses = 2*ones(1,natomType);
     mass_patch = 0.01;
     masses(2) = mass_patch;
 
@@ -589,7 +589,7 @@ function write_input(inputFile,p,origami_types,linker_types)
     %%% thermostat
     fprintf(f,strcat(...
         "## Thermostat\n",...
-        "fix             tstat all rigid/nve molecule langevin ", num2str(p.T), " ", num2str(p.T), " 0.049 37\n",...
+        "fix             tstat all rigid/nve molecule langevin ", num2str(p.T), " ", num2str(p.T), " ", num2str(0.01), " 37\n",...
         "thermo          ", num2str(p.dump_every), "\n\n"));
 
     %%% relaxation

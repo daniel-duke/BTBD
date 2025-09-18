@@ -10,6 +10,14 @@ patch CLUB      B1 -1     1  0
 patch CLLB      B1 -1    -1  0
 patch CLUF      B1 -1.58  1 -1
 patch CLLF      B1 -1.58 -1 -1
+patch CRUmB     B1  1     0.33  0
+patch CRLmB     B1  1    -0.33  0
+patch CRUmF     B1  1.58  0.33 -1
+patch CRLmF     B1  1.58 -0.33 -1
+patch CLUmB     B1 -1     0.33  0
+patch CLLmB     B1 -1    -0.33  0
+patch CLUmF     B1 -1.58  0.33 -1
+patch CLLmF     B1 -1.58 -0.33 -1
 patch L1        B1  1  1 11
 patch L2        B1  1 -1 11
 patch L3        B1 -1  1 11
@@ -19,17 +27,29 @@ patch L4        B1 -1 -1 11
 origami O1      1
 O1 blocks       B1 B1 B1
 O1 conn         1 P-CRUF 2 P-CLUF 5
-O1 conn         1 P-CRLF 2 P-CLLF 5.5
+O1 conn         1 P-CRLF 2 P-CLLF 5
 O1 conn         2 P-CRUF 3 P-CLUF 5
-O1 conn         2 P-CRLF 3 P-CLLF 5.5
+O1 conn         2 P-CRLF 3 P-CLLF 5
 O1 conn         3 P-CRUF 1 P-CLUF 5
-O1 conn         3 P-CRLF 1 P-CLLF 5.5
+O1 conn         3 P-CRLF 1 P-CLLF 5
+O1 conn         1 P-CRUmF 2 P-CLUmF 5
+O1 conn         1 P-CRLmF 2 P-CLLmF 5
+O1 conn         2 P-CRUmF 3 P-CLUmF 5
+O1 conn         2 P-CRLmF 3 P-CLLmF 5
+O1 conn         3 P-CRUmF 1 P-CLUmF 5
+O1 conn         3 P-CRLmF 1 P-CLLmF 5
 O1 angle        1 P-CRUB 1 P-CRUF 2 P-CLUF 2 P-CLUB 180
 O1 angle        2 P-CRUB 2 P-CRUF 3 P-CLUF 3 P-CLUB 180
 O1 angle        3 P-CRUB 3 P-CRUF 1 P-CLUF 1 P-CLUB 180
 O1 angle        1 P-CRLB 1 P-CRLF 2 P-CLLF 2 P-CLLB 180
 O1 angle        2 P-CRLB 2 P-CRLF 3 P-CLLF 3 P-CLLB 180
 O1 angle        3 P-CRLB 3 P-CRLF 1 P-CLLF 1 P-CLLB 180
+O1 angle        1 P-CRUmB 1 P-CRUmF 2 P-CLUmF 2 P-CLUmB 180
+O1 angle        2 P-CRUmB 2 P-CRUmF 3 P-CLUmF 3 P-CLUmB 180
+O1 angle        3 P-CRUmB 3 P-CRUmF 1 P-CLUmF 1 P-CLUmB 180
+O1 angle        1 P-CRLmB 1 P-CRLmF 2 P-CLLmF 2 P-CLLmB 180
+O1 angle        2 P-CRLmB 2 P-CRLmF 3 P-CLLmF 3 P-CLLmB 180
+O1 angle        3 P-CRLmB 3 P-CRLmF 1 P-CLLmF 1 P-CLLmB 180
 
 %%% linkers
 linker L1       0
