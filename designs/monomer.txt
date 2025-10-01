@@ -2,11 +2,9 @@
 block B1        1HB 11              % pattern, height
 
 %%% patches
-patch CM        B1 1 0 0            % block type, x, y, z
 patch L1        B1 1 0 1            % block type, x, y, z
 patch L2        B1 1 0 9            % block type, x, y, z
 
 %%% origami
 origami O1      10                  % count
-O1 blocks       B1 B1               % block type(s)
-O1 conn         1 P-CM 2 P-CM 6     % block index + location 1 and 2, length [nm]
+O1 blocks       B1                  % block type(s)

@@ -2,6 +2,7 @@
 classdef origami
     properties
         name                % origami name
+        rigid               % origami or block
         bs                  % block objects
         nconn               % number of connections
         conns_bis           % connection block indices
@@ -11,6 +12,7 @@ classdef origami
         angles_bis          % angle block indices
         angles_ibs          % angle bead indices
         angles_theta_eq     % angle equilibrium theta
+        angles_theta_init   % angle initial theta
         nlink5              % number of 5p linkers
         link5s_name         % 5p linkers linker index
         link5s_io           % 5p linkers bead index within origami
@@ -37,6 +39,7 @@ classdef origami
             o.angles_bis = [];
             o.angles_ibs = [];
             o.angles_theta_eq = [];
+            o.angles_theta_init = [];
             o.nlink5 = 0;
             o.link5s_name = strings();
             o.link5s_io = [];
@@ -70,7 +73,7 @@ classdef origami
 
 
         %%% add angle to origami
-        function o = add_angle(o,bi1,loc1,bi2,loc2,bi3,loc3,bi4,loc4,theta_eq)
+        function o = add_angle(o,bi1,loc1,bi2,loc2,bi3,loc3,bi4,loc4,theta_eq,theta_init)
             o.nangle = o.nangle + 1;
             o.angles_bis(:,o.nangle) = [bi1;bi2;bi3;bi4];
             ib1 = o.bs(bi1).interpret_loc(loc1);
@@ -79,6 +82,7 @@ classdef origami
             ib4 = o.bs(bi4).interpret_loc(loc4);
             o.angles_ibs(:,o.nangle) = [ib1;ib2;ib3;ib4];
             o.angles_theta_eq(o.nangle) = theta_eq;
+            o.angles_theta_init(o.nangle) = theta_init;
         end
 
 
@@ -153,8 +157,10 @@ classdef origami
         %%% initialize origami positions
         function [o,failed,r_other] = init_positions(o,p,r_other)
             max_attempts_conf = 1000;
+            max_attempts_rot = 1000;
             max_attempts_place = 1000;
-            U_overstretched = 100;
+            tolerance_rot = 0.001;
+            U_overstretched = 10;
 
             %%% for transforming bead units to real units
             units_bead2real = [p.r12_helix;p.r12_helix;p.r12_bead];
@@ -178,6 +184,7 @@ classdef origami
                 [o.bs(1),~,r_other_origami] = o.bs(1).init_positions(p,r_source,0,1,0,r_other_origami);
 
                 %%% loop over remaining blocks
+                failed_block = false;
                 for bi = 2:length(o.bs)
 
                     %%% find first connection between block and any previous block
@@ -187,7 +194,7 @@ classdef origami
                                 b0 = o.conns_bis(1,ci);
                                 ib_conn_b0 = o.conns_ibs(1,ci);
                                 ib_conn_b1 = o.conns_ibs(2,ci);
-                                r12_conn = o.conns_r12_eq(ci);
+                                r12_conn_mag = o.conns_r12_eq(ci);
                                 break
                             end
                         elseif o.conns_bis(1,ci) == bi
@@ -195,7 +202,7 @@ classdef origami
                                 b0 = o.conns_bis(2,ci);
                                 ib_conn_b0 = o.conns_ibs(2,ci);
                                 ib_conn_b1 = o.conns_ibs(1,ci);
-                                r12_conn = o.conns_r12_eq(ci);
+                                r12_conn_mag = o.conns_r12_eq(ci);
                                 break
                             end
                         elseif ci == o.nconn
@@ -204,12 +211,12 @@ classdef origami
                     end
 
                     %%% look for angle over first connection
-                    theta_eq = 0;
+                    theta_init = 0;
                     for ai = 1:o.nangle
                         if o.angles_bis(2,ai) == b0 && o.angles_ibs(2,ai) == ib_conn_b0
                             if o.angles_bis(3,ai) == bi && o.angles_ibs(3,ai) == ib_conn_b1
                                 r12_patches_b0 = o.bs(b0).r(:,o.angles_ibs(2,ai)) - o.bs(b0).r(:,o.angles_ibs(1,ai));
-                                theta_eq = o.angles_theta_eq(ai);
+                                theta_init = o.angles_theta_init(ai);
                                 ib_end_b1 = o.angles_ibs(4,ai);
                                 break
                             end
@@ -217,7 +224,7 @@ classdef origami
                         if o.angles_bis(3,ai) == b0 && o.angles_ibs(3,ai) == ib_conn_b0
                             if o.angles_bis(2,ai) == bi && o.angles_ibs(2,ai) == ib_conn_b1
                                 r12_patches_b0 = o.bs(b0).r(:,o.angles_ibs(4,ai)) - o.bs(b0).r(:,o.angles_ibs(3,ai));
-                                theta_eq = o.angles_theta_eq(ai);
+                                theta_init = o.angles_theta_init(ai);
                                 ib_end_b1 = o.angles_ibs(1,ai);
                                 break
                             end
@@ -226,11 +233,7 @@ classdef origami
 
                     %%% if angle found, calculate directions
                     R = 0;
-                    if theta_eq > 0
-
-                        %%% connection direction
-                        r12_perp = ars.unitVector(cross(r12_patches_b0,ars.randUnitVec()));
-                        r12_conn = r12_conn*(cos(180-theta_eq)*ars.unitVector(r12_patches_b0) + sin(180-theta_eq)*r12_perp);
+                    if theta_init > 0
 
                         %%% look for second connection between the two blocks
                         r12_eq_conn2 = 0;
@@ -256,19 +259,77 @@ classdef origami
 
                         %%% no second connection
                         if r12_eq_conn2 == 0
+
+                            %%% connection direction
+                            r12_perp = ars.unitVector(cross(r12_patches_b0,ars.randUnitVec()));
+                            r12_conn = r12_conn_mag*(cosd(180-theta_init)*ars.unitVector(r12_patches_b0) + sind(180-theta_init)*r12_perp);
+
+                            %%% block direction
                             r12_perp = ars.unitVector(cross(r12_conn,ars.randUnitVec()));
-                            r12_patches_bi = cos(180-theta_eq)*ars.unitVector(r12_conn) + sin(180-theta_eq)*r12_perp;
+                            r12_patches_bi = cosd(180-theta_init)*ars.unitVector(r12_conn) + sind(180-theta_init)*r12_perp;
                             r12_patches_bi_internal = ars.unitVector(o.bs(bi).r_internal(:,ib_end_b1).*units_bead2real - o.bs(bi).r_internal(:,ib_conn_b1).*units_bead2real);
                             R = o.getRotation(r12_patches_bi,r12_patches_bi_internal,0);
                         
                         %%% match the second connection
                         else
-                            r12_perp = ars.unitVector(cross(r12_conn,ars.randUnitVec()));
-                            r12_patches_bi = cos(180-theta_eq)*ars.unitVector(r12_conn) + sin(180-theta_eq)*r12_perp;
-                            r12_patches_bi_internal = ars.unitVector(o.bs(bi).r_internal(:,ib_end_b1).*units_bead2real - o.bs(bi).r_internal(:,ib_conn_b1).*units_bead2real);
-                            R = o.optimizeR(r12_patches_bi,r12_patches_bi_internal,b0,bi,ib_conn_b0,ib_conn_b1,ib_conn2_b0,ib_conn2_b1,r12_conn,r12_eq_conn2,units_bead2real);
+
+                            %%% look for angle over second connection
+                            theta2_init = 0;
+                            for ai = 1:o.nangle
+                                if o.angles_bis(2,ai) == b0 && o.angles_ibs(2,ai) == ib_conn2_b0
+                                    if o.angles_bis(3,ai) == bi && o.angles_ibs(3,ai) == ib_conn2_b1
+                                        r12_patches_b0_angle2 = o.bs(b0).r(:,o.angles_ibs(2,ai)) - o.bs(b0).r(:,o.angles_ibs(1,ai));
+                                        theta2_init = o.angles_theta_init(ai);
+                                        break
+                                    end
+                                end
+                                if o.angles_bis(3,ai) == b0 && o.angles_ibs(3,ai) == ib_conn_b0
+                                    if o.angles_bis(2,ai) == bi && o.angles_ibs(2,ai) == ib_conn_b1
+                                        r12_patches_b0_angle2 = o.bs(b0).r(:,o.angles_ibs(4,ai)) - o.bs(b0).r(:,o.angles_ibs(3,ai));
+                                        theta2_init = o.angles_theta_init(ai);
+                                        break
+                                    end
+                                end
+                            end
+
+                            %%% block rotation attempt loop
+                            attempts_rot = 0;
+                            while true
+
+                                %%% check configuration attempts
+                                if attempts_rot == max_attempts_rot
+                                    failed = true;
+                                    return
+                                end
+
+                                %%% connection direction
+                                r12_conns_b0 = ars.unitVector(o.bs(b0).r(:,ib_conn2_b0) - o.bs(b0).r(:,ib_conn_b0));
+                                r12_perp = (2*randi(2)-3)*cross(ars.unitVector(r12_patches_b0),r12_conns_b0);
+                                r12_conn = r12_conn_mag*( cosd(180-theta_init)*ars.unitVector(r12_patches_b0) + sind(180-theta_init)*r12_perp );
+
+                                %%% block direction
+                                r12_perp = (2*randi(2)-3)*cross(ars.unitVector(r12_conn),r12_conns_b0);
+                                r12_patches_bi = cosd(180-theta_init)*ars.unitVector(r12_conn) + sind(180-theta_init)*r12_perp;
+                                r12_patches_bi_internal = ars.unitVector(o.bs(bi).r_internal(:,ib_end_b1).*units_bead2real - o.bs(bi).r_internal(:,ib_conn_b1).*units_bead2real);
+                                [R,failed_rot,r12_conn2] = o.optimizeR(r12_patches_bi,r12_patches_bi_internal,b0,bi,ib_conn_b0,ib_conn_b1,ib_conn2_b0,ib_conn2_b1,r12_conn,r12_eq_conn2,units_bead2real,tolerance_rot);
+                                if failed_rot
+                                    attempts_rot = attempts_rot + 1;
+                                    continue
+                                end
+
+                                %%% check second angle
+                                if theta2_init ~= 0
+                                    if abs(dot(ars.unitVector(r12_patches_b0_angle2), ars.unitVector(r12_conn2)) - cosd(180-theta2_init)) > tolerance_rot
+                                        attempts_rot = attempts_rot + 1;
+                                        continue
+                                    end
+                                end
+
+                                %%% block rotation found
+                                break
+                            end
                         end
-                    end                    
+                    end
 
                     %%% add block
                     r_source = o.bs(b0).r(:,ib_conn_b0);
@@ -368,16 +429,18 @@ classdef origami
 
 
         %%% optimize rotation matrix around a connected angle to satisfy a second connection
-        function R = optimizeR(o,r12_patches_bi,r12_patches_bi_internal,b0,bi,ib_conn_b0,ib_conn_b1,ib_conn2_b0,ib_conn2_b1,r12_conn,r12_eq_conn2,units_bead2real)
-            tolerance = 0.001;
+        function [R,failed,r12_conn2] = optimizeR(o,r12_patches_bi,r12_patches_bi_internal,b0,bi,ib_conn_b0,ib_conn_b1,ib_conn2_b0,ib_conn2_b1,r12_conn,r12_eq_conn2,units_bead2real,tolerance)
             max_iterations = 1000;
             iteration = 0;
             initializing = true;
-            phi = 0;
+            finding_min = true;
+            phi = rand*360;
+            phi_prev = phi;
             step = 10;
             while true
                 if iteration == max_iterations
-                    error("Cannot find configuraiton that satisfies all connections and angles.")
+                    failed = true;
+                    break
                 end
                 iteration = iteration + 1;
                 R = o.getRotation(r12_patches_bi,r12_patches_bi_internal,phi);
@@ -386,9 +449,10 @@ classdef origami
                 r_conn2_bi_internal = o.bs(bi).r_internal(:,ib_conn2_b1).*units_bead2real;
                 r_conn2_bi = r_conn_bi + R'*(r_conn2_bi_internal-r_conn_bi_internal);
                 r_conn2_b0 = o.bs(b0).r(:,ib_conn2_b0);
-                d = norm(r_conn2_bi-r_conn2_b0);
+                r12_conn2 = r_conn2_bi-r_conn2_b0;
+                d = norm(r12_conn2);
                 if initializing == true
-                    if phi == step
+                    if phi - phi_prev == step
                         m = (d-d_prev)/step;
                         if m > 0
                             step = -step;
@@ -396,18 +460,24 @@ classdef origami
                         m_prev = m;
                         initializing = false;
                     end
-                else
-                    if d-r12_eq_conn2 < tolerance
-                        if d-r12_eq_conn2 < 0
-                            warning("Block connectivity has multiple solutions.")
-                        end
-                        break
+                elseif abs(d-r12_eq_conn2) < tolerance
+                    failed = false;
+                    break
+                elseif finding_min == true
+                    if d-r12_eq_conn2 < 0
+                        finding_min = false;
+                        d = d_prev;
+                        phi = phi - step;
                     else
                         m = (d-d_prev)/step;
                         if sign(m) ~= sign(m_prev)
                             step = -step/2;
                         end
                         m_prev = m;
+                    end
+                else
+                    if sign(d-r12_eq_conn2) ~= sign(d_prev-r12_eq_conn2)
+                        step = -step/2;
                     end
                 end
                 d_prev = d;
@@ -426,6 +496,12 @@ classdef origami
             a = v_f1/norm(v_f1); 
             b = v_f2/norm(v_f2);
             ref = [0;0;1];
+            if norm(ref-a) == 0 || norm(ref-b) == 0
+                ref = [1;0;0];
+                if norm(ref-a) == 0 || norm(ref-b)
+                    ref = [0;1;0];
+                end
+            end
             ua = ref - a*(a'*ref); ua = ua/norm(ua); va = cross(a,ua);
             ub = ref - b*(b'*ref); ub = ub/norm(ub); vb = cross(b,ub);
             A = [a ua va]; 

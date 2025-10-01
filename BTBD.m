@@ -1,6 +1,6 @@
 %%% Housekeeping
 clc; clear; close all;
-rng(42)
+rng(43)
 
 %%% To Do
 % replace bond write/break with react if unlinking is desired.
@@ -55,22 +55,22 @@ rng(42)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% read input
-inFile = "./designs/triarmV3.txt";
+inFile = "./designs/triarm_ds3.txt";
 [os,origami_types,linker_types] = read_input(inFile);
 
 %%% output parameters
-outFold = "/Users/dduke/Files/block_tether/network/experiment/active/";
+outFold = "/Users/dduke/Files/block_tether/network/experiment/big_v5/";
 nsim = 1;
 
 %%% simulation parameters
 nstep_eq        = 1E4;      % steps         - if and how long to equilibrate/shrink
 shrink_ratio    = 1;        % none          - box compression (final/initial)
-nstep_prod      = 1E6;      % steps         - if and how long to run producton
-dump_every      = 1E4;      % steps         - how often to write to output
+nstep_prod      = 3E7;      % steps         - if and how long to run producton
+dump_every      = 1E5;      % steps         - how often to write to output
 
 %%% computational parameters
-dt              = 0.015;     % ns            - time step
-dbox            = 150;      % nm            - periodic boundary diameter
+dt              = 0.08;     % ns            - time step
+dbox            = 320;      % nm            - periodic boundary diameter
 verlet_skin     = 4;        % nm            - width of neighbor list skin
 neigh_every     = 1E1;      % steps         - how often to consider updating neighbor list
 react_every     = 1E1;      % steps         - how often to check for linker hybridization
@@ -78,18 +78,19 @@ react_every     = 1E1;      % steps         - how often to check for linker hybr
 %%% physical parameters
 T               = 300;      % K             - temperature
 sigma           = 10;       % nm            - WCA distance parameter
-epsilon         = 0.1;      % kcal/mol      - WCA energy parameter
+epsilon         = 1;        % kcal/mol      - WCA energy parameter
 r12_bead        = 5;        % nm            - helix separation
 r12_helix       = 5;        % nm            - bead separation
 k_x_conn        = 1;        % kcal/mol/nm2  - connection spring constant
 k_x_linker      = 1;        % kcal/mol/nm2  - linker spring constant
-k_theta         = 0;        % kcal/mol/rad2 - angle spring constant
+U_cut_linker    = 8;        % kcal/mol      - linker reaction cutoff
+k_theta         = 6;        % kcal/mol/rad2 - angle spring constant
 
 %%% create parameters class
 p = parameters(nstep_eq,shrink_ratio,nstep_prod,dump_every,...
                dt,dbox,verlet_skin,neigh_every,react_every,...
                T,sigma,epsilon,r12_bead,r12_helix,...
-               k_x_conn,k_x_linker,k_theta);
+               k_x_conn,k_x_linker,U_cut_linker,k_theta);
 
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -249,11 +250,17 @@ function [os,origami_types,linker_types] = read_input(inFile)
                                 b = blocks(extract{bi+2});
                                 origamis(extract{1}) = origamis(extract{1}).add_block(b);
                             end
+                        case 'rigid'
+                            origamis(extract{1}).rigid = string(extract{3});
                         case 'conn'
                             origamis(extract{1}) = origamis(extract{1}).add_conn(str2double(extract{3}),extract{4},str2double(extract{5}),extract{6},str2double(extract{7}));
                             origami_types(extract{1}).conns_r12_eq = [ origami_types(extract{1}).conns_r12_eq str2double(extract{7}) ];
                         case 'angle'
-                            origamis(extract{1}) = origamis(extract{1}).add_angle(str2double(extract{3}),extract{4},str2double(extract{5}),extract{6},str2double(extract{7}),extract{8},str2double(extract{9}),extract{10},str2double(extract{11}));
+                            theta_init = str2double(extract{11});
+                            if length(extract) > 11
+                                theta_init = str2double(extract{12});
+                            end
+                            origamis(extract{1}) = origamis(extract{1}).add_angle(str2double(extract{3}),extract{4},str2double(extract{5}),extract{6},str2double(extract{7}),extract{8},str2double(extract{9}),extract{10},str2double(extract{11}),theta_init);
                             origami_types(extract{1}).angles_theta_eq = [ origami_types(extract{1}).angles_theta_eq str2double(extract{11}) ];
                         otherwise
                             error("Unknown origami parameter: " + extract{2})
@@ -307,20 +314,28 @@ function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,dbox)
 
     %%% initialize mass info
     natomType = 2 + nlinker*2;
-    masses = 2*ones(1,natomType);
+    masses = ones(1,natomType);
     mass_patch = 0.01;
     masses(2) = mass_patch;
 
     %%% compile atom info
     atoms = zeros(5,natom);
-    block_count = 0;
+    rigid_count = 0;
     for iu = 1:natom
         oi = get_oi(iu);
         io = get_io(iu);
-        if os(oi).get_ib(io) == 1
-            block_count = block_count + 1;
+        if os(oi).rigid == "origami"
+            if io == 1 
+                rigid_count = rigid_count + 1;
+            end
+        elseif os(oi).rigid == "block"
+            if os(oi).get_ib(io) == 1
+                rigid_count = rigid_count + 1;
+            end
+        else
+            error("Unknown rigid type")
         end
-        atoms(1,iu) = block_count;
+        atoms(1,iu) = rigid_count;
         if os(oi).is_patch(io)
             atoms(2,iu) = 2;
         else
@@ -426,9 +441,10 @@ function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,dbox)
             end
         end
     end
+    nangleType = angle_type+1;
 
     %%% write simulation geometry file
-    ars.writeGeo(geoFile,dbox,atoms,bonds,angles,masses=masses,nbondType=nbondType)
+    ars.writeGeo(geoFile,dbox,atoms,bonds,angles,masses=masses,nbondType=nbondType,nangleType=nangleType)
 
     %%% compile atom info for visualization
     atoms_vis = atoms;
@@ -485,8 +501,9 @@ function write_input(inputFile,p,origami_types,linker_types)
     end
     if nlinker > 0
         for l_name = keys(linker_types)'
+            r12_cut = linker_types(l_name).r12_eq + sqrt(2*p.U_cut_linker/p.k_x_linker);
             r12_max = linker_types(l_name).r12_eq + sqrt(2*U_max/p.k_x_linker);
-            comm_cutoff = max([comm_cutoff,r12_max]);
+            comm_cutoff = max([comm_cutoff,r12_cut,r12_max]);
         end
     end
 
@@ -578,6 +595,13 @@ function write_input(inputFile,p,origami_types,linker_types)
             end
         end
     end
+
+    %%% linker angle
+    if nlinker > 0
+        angle_type = angle_type + 1;
+        fprintf(f,strcat(...
+            "angle_coeff     ", num2str(angle_type), " ", ars.fstring(100/2,0,2), " ", ars.fstring(180,0,2), "\n"));
+    end
     
     %%% linker group
     if nlinker > 0
@@ -589,7 +613,7 @@ function write_input(inputFile,p,origami_types,linker_types)
     %%% thermostat
     fprintf(f,strcat(...
         "## Thermostat\n",...
-        "fix             tstat all rigid/nve molecule langevin ", num2str(p.T), " ", num2str(p.T), " ", num2str(0.01), " 37\n",...
+        "fix             tstat all rigid/nve molecule langevin ", num2str(p.T), " ", num2str(p.T), " ", num2str(p.dt*10), " 37\n",...
         "thermo          ", num2str(p.dump_every), "\n\n"));
 
     %%% relaxation
@@ -619,9 +643,9 @@ function write_input(inputFile,p,origami_types,linker_types)
         fprintf(f,"## Reactions\n");
         for l_name = keys(linker_types)'
             li = find(keys(linker_types)==l_name);
-            r12_eq = linker_types(l_name).r12_eq;
-            fixName = strcat("linker",num2str(nlinker));
-            add_bond_create(f,fixName,"linker",p.react_every,li*2-1,li*2,r12_eq,li);
+            r12_cut = linker_types(l_name).r12_eq + sqrt(2*p.U_cut_linker/p.k_x_linker);
+            fixName = strcat("linker",num2str(li));
+            add_bond_create(f,fixName,"linker",p.react_every,li*2+1,li*2+2,r12_cut,li,angle_type);
         end
         fprintf(f,"\n");
     end
@@ -632,8 +656,12 @@ function write_input(inputFile,p,origami_types,linker_types)
             "## Updates\n",...
             "dump            dump1 all custom ", num2str(p.dump_every), " trajectory.dat id mol xs ys zs\n",...
             "dump_modify     dump1 sort id\n",...
-            "compute         comp1 all property/local btype batom1 batom2\n",...
-            "dump            dump2 all local ", num2str(p.dump_every), " dump_bonds.txt index c_comp1[1] c_comp1[2] c_comp1[3]\n\n"));
+            "compute         compD1a all bond/local dist engpot\n",...
+            "compute         compD1b all property/local btype batom1 batom2\n",...
+            "dump            dumpD1 all local ", num2str(p.dump_every), " dump_bonds.txt index c_compD1a[1] c_compD1a[2] c_compD1b[1] c_compD1b[2] c_compD1b[3]\n",...
+			"compute         compD2a all angle/local theta eng\n",...
+			"compute         compD2b all property/local atype aatom1 aatom2 aatom3\n",...
+		    "dump            dumpD2 all local ", num2str(p.dump_every), " dump_angles.dat index c_compD2a[1] c_compD2a[2] c_compD2b[1] c_compD2b[2] c_compD2b[3] c_compD2b[4]\n\n"));
     end
 
     %%% production
@@ -651,12 +679,16 @@ end
 
 
 %%% write fix bond create command
-function add_bond_create(f,fixName,groupName,react_every,atomType1,atomType2,r12_cut,bondType)
+function add_bond_create(f,fixName,groupName,react_every,atomType1,atomType2,r12_cut,bondType,angleType)
     fprintf(f,strcat(...
         "fix             ", fixName, " ", groupName, " ",...
-        "bond/create ", num2str(react_every), " ",...
+        "bond/create/angle ", num2str(react_every), " ",...
         num2str(atomType1), " ",num2str(atomType2), " ",...
-        ars.fstring(r12_cut,0,2), " ", num2str(bondType), " ",...
+        ars.fstring(r12_cut,0,2), " ", num2str(bondType), " "));
+    if angleType ~= 0 
+        fprintf(f,strcat("atype ", num2str(angleType), " aconstrain 120 180 "));
+    end
+    fprintf(f,strcat(...
         "iparam 1 ", num2str(atomType1), " ",...
         "jparam 1 ", num2str(atomType2), "\n"));
 end

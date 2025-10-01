@@ -1,0 +1,83 @@
+%%% blocks
+block Bal       1HB 5
+block Bar       1HB 5
+block Bi        1HB 5
+
+%%% left block
+patch CRUB      Bal  1  1  0
+patch CRLB      Bal  1 -1  0
+patch CRUF      Bal  1  1 -1
+patch CRLF      Bal  1 -1 -1
+patch CLUF      Bal -1  1 -1
+patch CLLF      Bal -1 -1 -1
+patch CRUmB     Bal  1  0.33  0
+patch CRLmB     Bal  1 -0.33  0
+patch CRUmF     Bal  1  0.33 -1
+patch CRLmF     Bal  1 -0.33 -1
+patch CLUmF     Bal -1  0.33 -1
+patch CLLmF     Bal -1 -0.33 -1
+patch L1        Bal  0  0.5 5.2
+patch L2        Bal  0 -0.5 5.2
+patch L3        Bal  0  0.5 4.8
+patch L4        Bal  0 -0.5 4.8
+
+%%% right active block
+patch CRUF      Bar  1  1 -1
+patch CRLF      Bar  1 -1 -1
+patch CLUB      Bar -1  1  0
+patch CLLB      Bar -1 -1  0
+patch CLUF      Bar -1  1 -1
+patch CLLF      Bar -1 -1 -1
+patch CRUmF     Bar  1  0.33 -1
+patch CRLmF     Bar  1 -0.33 -1
+patch CLUmB     Bar -1  0.33  0
+patch CLLmB     Bar -1 -0.33  0
+patch CLUmF     Bar -1  0.33 -1
+patch CLLmF     Bar -1 -0.33 -1
+patch L1        Bar  0  0.5 5.2
+patch L2        Bar  0 -0.5 5.2
+patch L3        Bar  0  0.5 4.8
+patch L4        Bar  0 -0.5 4.8
+
+%%% inert block
+patch CRUF      Bi  0.5  1 -1
+patch CRLF      Bi  0.5 -1 -1
+patch CLUF      Bi -0.5  1 -1
+patch CLLF      Bi -0.5 -1 -1
+patch CRUmF     Bi  0.5  0.33 -1
+patch CRLmF     Bi  0.5 -0.33 -1
+patch CLUmF     Bi -0.5  0.33 -1
+patch CLLmF     Bi -0.5 -0.33 -1
+
+%%% origami
+origami O1      6
+O1 blocks       Bal Bar Bi
+O1 rigid        block
+O1 conn         1 P-CRUF 2 P-CLUF 5
+O1 conn         1 P-CRLF 2 P-CLLF 5
+O1 conn         2 P-CRUF 3 P-CLUF 5
+O1 conn         2 P-CRLF 3 P-CLLF 5
+O1 conn         3 P-CRUF 1 P-CLUF 5
+O1 conn         3 P-CRLF 1 P-CLLF 5
+O1 conn         1 P-CRUmF 2 P-CLUmF 5
+O1 conn         1 P-CRLmF 2 P-CLLmF 5
+O1 conn         2 P-CRUmF 3 P-CLUmF 5
+O1 conn         2 P-CRLmF 3 P-CLLmF 5
+O1 conn         3 P-CRUmF 1 P-CLUmF 5
+O1 conn         3 P-CRLmF 1 P-CLLmF 5
+O1 conn         1 P-L1 1 P-L3 2
+O1 conn         1 P-L2 1 P-L4 2
+O1 conn         2 P-L1 2 P-L3 2
+O1 conn         2 P-L2 2 P-L4 2
+O1 angle        1 P-CRUB 1 P-CRUF 2 P-CLUF 2 P-CLUB 180
+O1 angle        1 P-CRLB 1 P-CRLF 2 P-CLLF 2 P-CLLB 180
+O1 angle        1 P-CRUmB 1 P-CRUmF 2 P-CLUmF 2 P-CLUmB 180
+O1 angle        1 P-CRLmB 1 P-CRLmF 2 P-CLLmF 2 P-CLLmB 180
+
+%%% linkers
+linker L1       2
+L1 5p           O1 1 P-L1
+L1 3p           O1 2 P-L1
+linker L2       2
+L2 5p           O1 1 P-L2
+L2 3p           O1 2 P-L2

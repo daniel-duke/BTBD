@@ -1,7 +1,9 @@
 %%% blocks
 block B1        1HB 11
+block B2        1HB 11
+block B3        1HB 11
 
-%%% patches
+%%% block 1 patches
 patch CRUB      B1  1     1  0
 patch CRLB      B1  1    -1  0
 patch CRUF      B1  1.58  1 -1
@@ -18,14 +20,55 @@ patch CLUmB     B1 -1     0.33  0
 patch CLLmB     B1 -1    -0.33  0
 patch CLUmF     B1 -1.58  0.33 -1
 patch CLLmF     B1 -1.58 -0.33 -1
-patch L1        B1  1  1 11
-patch L2        B1  1 -1 11
-patch L3        B1 -1  1 11
-patch L4        B1 -1 -1 11
+patch L1        B1  0.3  0.3 11.3
+patch L2        B1  0.3 -0.3 11.3
+patch L3        B1 -0.3  0.3 11.3
+patch L4        B1 -0.3 -0.3 11.3
+
+%%% block 2 patches
+patch CRUB      B2  1     1  0
+patch CRLB      B2  1    -1  0
+patch CRUF      B2  1.58  1 -1
+patch CRLF      B2  1.58 -1 -1
+patch CLUB      B2 -1     1  0
+patch CLLB      B2 -1    -1  0
+patch CLUF      B2 -1.58  1 -1
+patch CLLF      B2 -1.58 -1 -1
+patch CRUmB     B2  1     0.33  0
+patch CRLmB     B2  1    -0.33  0
+patch CRUmF     B2  1.58  0.33 -1
+patch CRLmF     B2  1.58 -0.33 -1
+patch CLUmB     B2 -1     0.33  0
+patch CLLmB     B2 -1    -0.33  0
+patch CLUmF     B2 -1.58  0.33 -1
+patch CLLmF     B2 -1.58 -0.33 -1
+patch L1        B2 -0.3  0.3 11.3
+patch L2        B2 -0.3 -0.3 11.3
+patch L3        B2  0.3  0.3 11.3
+patch L4        B2  0.3 -0.3 11.3
+
+%%% block 3 patches
+patch CRUB      B3  1     1  0
+patch CRLB      B3  1    -1  0
+patch CRUF      B3  1.58  1 -1
+patch CRLF      B3  1.58 -1 -1
+patch CLUB      B3 -1     1  0
+patch CLLB      B3 -1    -1  0
+patch CLUF      B3 -1.58  1 -1
+patch CLLF      B3 -1.58 -1 -1
+patch CRUmB     B3  1     0.33  0
+patch CRLmB     B3  1    -0.33  0
+patch CRUmF     B3  1.58  0.33 -1
+patch CRLmF     B3  1.58 -0.33 -1
+patch CLUmB     B3 -1     0.33  0
+patch CLLmB     B3 -1    -0.33  0
+patch CLUmF     B3 -1.58  0.33 -1
+patch CLLmF     B3 -1.58 -0.33 -1
 
 %%% origami
-origami O1      1
-O1 blocks       B1 B1 B1
+origami O1      4
+O1 blocks       B1 B2 B3
+O1 rigid        origami
 O1 conn         1 P-CRUF 2 P-CLUF 5
 O1 conn         1 P-CRLF 2 P-CLLF 5
 O1 conn         2 P-CRUF 3 P-CLUF 5
