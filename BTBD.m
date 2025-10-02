@@ -55,11 +55,11 @@ rng(43)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% read input
-inFile = "./designs/triarm_ds3.txt";
-[os,origami_types,linker_types] = read_input(inFile);
+inFile = "./designs/control.txt";
+[os,origami_types,linker_types,potentials] = read_input(inFile);
 
 %%% output parameters
-outFold = "/Users/dduke/Files/block_tether/network/experiment/big_v5/";
+outFold = "/Users/dduke/Files/block_tether/free_origami/lammps/active/";
 nsim = 1;
 
 %%% simulation parameters
@@ -119,7 +119,7 @@ for i = 1:nsim
     
     %%% write lammps input file
     inputFile = simFold + "lammps.in";
-    write_input(inputFile,p,origami_types,linker_types)
+    write_input(inputFile,p,origami_types,linker_types,potentials)
 end
 
 
@@ -197,7 +197,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% read input file and create corresponding origami objects
-function [os,origami_types,linker_types] = read_input(inFile)
+function [os,origami_types,linker_types,potential_types] = read_input(inFile)
 
     %%% open file
     f = fopen(inFile, 'r');
@@ -206,9 +206,10 @@ function [os,origami_types,linker_types] = read_input(inFile)
     end
 
     %%% initialize dictionaries
-    blocks = dictionary();
-    origamis = dictionary();
+    potential_types = dictionary();
+    block_templates = dictionary();
     origami_types = dictionary();
+    origami_templates = dictionary();
     linker_types = dictionary();
 
     %%% loop over lines
@@ -229,12 +230,17 @@ function [os,origami_types,linker_types] = read_input(inFile)
 
         %%% set the appropriate value
         switch extract{1}
+            case 'potential'
+                potential.type = extract{3};
+                potential.r12_eq = str2double(extract{4});
+                potential.parameters = str2double(extract(5:end));
+                potential_types(extract{2}) = potential;
             case 'block'
-                blocks(extract{2}) = block(convertCharsToStrings(extract{3}),str2double(extract{4}));
+                block_templates(extract{2}) = block(convertCharsToStrings(extract{3}),str2double(extract{4}));
             case 'patch'
-                blocks(extract{3}) = blocks(extract{3}).add_patch(extract{2},str2double(extract{4}),str2double(extract{5}),str2double(extract{6}));
+                block_templates(extract{3}) = block_templates(extract{3}).add_patch(extract{2},str2double(extract{4}),str2double(extract{5}),str2double(extract{6}));
             case 'origami'
-                origamis(extract{2}) = origami(string(extract{2}));
+                origami_templates(extract{2}) = origami(string(extract{2}));
                 origami_type.count = str2double(extract{3});
                 origami_type.conns_r12_eq = [];
                 origami_type.angles_theta_eq = [];
@@ -247,20 +253,20 @@ function [os,origami_types,linker_types] = read_input(inFile)
                     switch extract{2}
                         case 'blocks'
                             for bi = 1:length(extract)-2
-                                b = blocks(extract{bi+2});
-                                origamis(extract{1}) = origamis(extract{1}).add_block(b);
+                                b = block_templates(extract{bi+2});
+                                origami_templates(extract{1}) = origami_templates(extract{1}).add_block(b);
                             end
                         case 'rigid'
-                            origamis(extract{1}).rigid = string(extract{3});
+                            origami_templates(extract{1}).rigid = string(extract{3});
                         case 'conn'
-                            origamis(extract{1}) = origamis(extract{1}).add_conn(str2double(extract{3}),extract{4},str2double(extract{5}),extract{6},str2double(extract{7}));
-                            origami_types(extract{1}).conns_r12_eq = [ origami_types(extract{1}).conns_r12_eq str2double(extract{7}) ];
+                            origami_templates(extract{1}) = origami_templates(extract{1}).add_conn(str2double(extract{3}),extract{4},str2double(extract{5}),extract{6},str2double(extract{7}));
+                            origami_types(extract{1}).conns_r12_eq = [ origami_types(extract{1}).conns_r12_eq potential_types(extract{7}).r12_eq ];
                         case 'angle'
                             theta_init = str2double(extract{11});
                             if length(extract) > 11
                                 theta_init = str2double(extract{12});
                             end
-                            origamis(extract{1}) = origamis(extract{1}).add_angle(str2double(extract{3}),extract{4},str2double(extract{5}),extract{6},str2double(extract{7}),extract{8},str2double(extract{9}),extract{10},str2double(extract{11}),theta_init);
+                            origami_templates(extract{1}) = origami_templates(extract{1}).add_angle(str2double(extract{3}),extract{4},str2double(extract{5}),extract{6},str2double(extract{7}),extract{8},str2double(extract{9}),extract{10},str2double(extract{11}),theta_init);
                             origami_types(extract{1}).angles_theta_eq = [ origami_types(extract{1}).angles_theta_eq str2double(extract{11}) ];
                         otherwise
                             error("Unknown origami parameter: " + extract{2})
@@ -268,9 +274,9 @@ function [os,origami_types,linker_types] = read_input(inFile)
                 elseif isKey(linker_types,extract{1})
                     switch extract{2}
                         case '5p'
-                            origamis(extract{3}) = origamis(extract{3}).add_linker(string(extract{1}),1,extract{4},extract{5});
+                            origami_templates(extract{3}) = origami_templates(extract{3}).add_linker(string(extract{1}),1,extract{4},extract{5});
                         case '3p'
-                            origamis(extract{3}) = origamis(extract{3}).add_linker(string(extract{1}),0,extract{4},extract{5});
+                            origami_templates(extract{3}) = origami_templates(extract{3}).add_linker(string(extract{1}),0,extract{4},extract{5});
                         otherwise
                             error("Unknown linker parameter: " + extract{2})
                     end
@@ -285,7 +291,7 @@ function [os,origami_types,linker_types] = read_input(inFile)
     os = origami.empty;
     for o_name = keys(origami_types)'
         count = origami_types(o_name).count;
-        os(length(os)+1:length(os)+count) = origamis(o_name);
+        os(length(os)+1:length(os)+count) = origami_templates(o_name);
     end
 end
 
@@ -415,8 +421,8 @@ function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,dbox)
 
     %%% compile angle info
     angles = zeros(4,nangle);
+    angle_type = 0;
     if nangle > 0
-        angle_type = 0;
         angle_count = 0;
         for o_name = keys(origami_types)'
             ois = find([os.name]==o_name);
@@ -481,7 +487,7 @@ end
 
 
 %%% write lammps input file
-function write_input(inputFile,p,origami_types,linker_types)
+function write_input(inputFile,p,origami_types,linker_types,potential_types)
 
     %%% get counts
     nlinker = numEntries(linker_types);
@@ -598,7 +604,11 @@ function write_input(inputFile,p,origami_types,linker_types)
 
     %%% linker angle
     if nlinker > 0
-        angle_type = angle_type + 1;
+        if nangleType == 0
+            angle_type = 1;
+        else
+            angle_type = angle_type + 1;
+        end
         fprintf(f,strcat(...
             "angle_coeff     ", num2str(angle_type), " ", ars.fstring(100/2,0,2), " ", ars.fstring(180,0,2), "\n"));
     end

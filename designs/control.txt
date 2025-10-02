@@ -1,32 +1,36 @@
+%%% potentials
+potential ssC   harmonic 6 1        % type, equilibrium separation, parameter(s)
+potential ssL   harmonic 6 1        % type, equilibrium separation, parameter(s)
+
 %%% blocks
-block B1        1HB 11              % pattern, height
-block B2        1HB 11              % pattern, height
+block B1        1HB 11              % pattern in xy-plane, number of beads in z-axis
+block B2        1HB 11              % pattern in xy-plane, number of beads in z-axis
 
 %%% patches
-patch CL        B1 0  1 0           % block type, theta, radius, z
-patch CR        B1 90 1 0           % block type, theta, radius, z
-patch L1        B1 45 1 1           % block type, theta, radius, z
-patch L2        B1 45 1 9           % block type, theta, radius, z
-patch CM        B2 0  1 0           % block type, theta, radius, z
-patch L1        B2 0  1 1           % block type, theta, radius, z
-patch L2        B2 0  1 9           % block type, theta, radius, z
+patch CL        B1 3.54 3.54 0      % block type, x, y, z
+patch CR        B1 3.54 -3.54 0     % block type, x, y, z
+patch L1        B1 5 0 5            % block type, x, y, z
+patch L2        B1 5 0 45           % block type, x, y, z
+patch CM        B2 5 0 0            % block type, x, y, z
+patch L1        B2 5 0 5            % block type, x, y, z
+patch L2        B2 5 0 45           % block type, x, y, z
 
 %%% origami (type 1)
 origami O1      8                   % count
 O1 blocks       B1 B1 B1            % block type(s)
-O1 conn         1 P-CL 2 P-CR 6     % block index + location 1 and 2, length [nm]
-O1 conn         2 P-CL 3 P-CR 6     % block index + location 1 and 2, length [nm]
-O1 conn         3 P-CL 1 P-CR 6     % block index + location 1 and 2, length [nm]
+O1 conn         1 CL 2 CR ssC       % block index + location 1 and 2, potential type
+O1 conn         2 CL 3 CR ssC       % block index + location 1 and 2, potential type
+O1 conn         3 CL 1 CR ssC       % block index + location 1 and 2, potential type
 
 %%% origami (type 2)
 origami O2      12                  % count
 O2 blocks       B2 B2               % block type(s)
-O2 conn         1 P-CM 2 P-CM 6     % block index + location 1 and 2, length [nm]
+O2 conn         1 CM 2 CM ssC       % block index + location 1 and 2, potential type
 
 %%% linkers
-linker L1       3                   % length [nm]
-L1 5p           O1 A P-L1           % origami type, block indices, location
-L1 3p           O2 A P-L2           % origami type, block indices, location
-linker L2       3                   % length [nm]
-L2 5p           O1 A P-L2           % origami type, block indices, location
-L2 3p           O2 A P-L1           % origami type, block indices, location
+linker L1       ssL                 % potential type
+L1 5p           O1 A L1             % origami type, block indices, location
+L1 3p           O2 A L2             % origami type, block indices, location
+linker L2       ssL                 % potential type
+L2 5p           O1 A L2             % origami type, block indices, location
+L2 3p           O2 A L1             % origami type, block indices, location

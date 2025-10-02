@@ -1,12 +1,15 @@
+%%% potentials
+potential ssC   harmonic 6 1        % type, equilibrium separation, parameter(s)
+
 %%% blocks
-block B1        1HB 11              % pattern, height
+block B1        1HB 11              % pattern in xy-plane, number of beads in z-axis
 
 %%% patches
-patch CM        B1 1 0 0            % block type, x, y, z
-patch L1        B1 1 0 1            % block type, x, y, z
-patch L2        B1 1 0 9            % block type, x, y, z
+patch CM        B1 5 0 0            % block type, x, y, z
+patch L1        B1 5 0 5            % block type, x, y, z
+patch L2        B1 5 0 45           % block type, x, y, z
 
 %%% origami
 origami O1      10                  % count
 O1 blocks       B1 B1               % block type(s)
-O1 conn         1 P-CM 2 P-CM 6     % block index + location 1 and 2, length [nm]
+O1 conn         1 CM 2 CM ssC       % block index + location 1 and 2, potential type

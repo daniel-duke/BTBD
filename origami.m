@@ -30,6 +30,7 @@ classdef origami
         %%% constructor
         function o = origami(name)
             o.name = name;
+            o.rigid = "block";
             o.bs = [];
             o.nconn = 0;
             o.conns_bis = [];
@@ -162,9 +163,6 @@ classdef origami
             tolerance_rot = 0.001;
             U_overstretched = 10;
 
-            %%% for transforming bead units to real units
-            units_bead2real = [p.r12_helix;p.r12_helix;p.r12_bead];
-
             %%% configuraiton attempt loop
             disp("Looking for configuration...")
             attempts_conf = 0;
@@ -194,7 +192,8 @@ classdef origami
                                 b0 = o.conns_bis(1,ci);
                                 ib_conn_b0 = o.conns_ibs(1,ci);
                                 ib_conn_b1 = o.conns_ibs(2,ci);
-                                r12_conn_mag = o.conns_r12_eq(ci);
+                                r12_conn = o.conns_r12_eq(ci);
+                                r12_conn_mag = r12_conn;
                                 break
                             end
                         elseif o.conns_bis(1,ci) == bi
@@ -202,7 +201,8 @@ classdef origami
                                 b0 = o.conns_bis(2,ci);
                                 ib_conn_b0 = o.conns_ibs(2,ci);
                                 ib_conn_b1 = o.conns_ibs(1,ci);
-                                r12_conn_mag = o.conns_r12_eq(ci);
+                                r12_conn = o.conns_r12_eq(ci);
+                                r12_conn_mag = r12_conn;
                                 break
                             end
                         elseif ci == o.nconn
@@ -267,7 +267,7 @@ classdef origami
                             %%% block direction
                             r12_perp = ars.unitVector(cross(r12_conn,ars.randUnitVec()));
                             r12_patches_bi = cosd(180-theta_init)*ars.unitVector(r12_conn) + sind(180-theta_init)*r12_perp;
-                            r12_patches_bi_internal = ars.unitVector(o.bs(bi).r_internal(:,ib_end_b1).*units_bead2real - o.bs(bi).r_internal(:,ib_conn_b1).*units_bead2real);
+                            r12_patches_bi_internal = ars.unitVector(o.bs(bi).r_internal(:,ib_end_b1) - o.bs(bi).r_internal(:,ib_conn_b1));
                             R = o.getRotation(r12_patches_bi,r12_patches_bi_internal,0);
                         
                         %%% match the second connection
@@ -310,8 +310,8 @@ classdef origami
                                 %%% block direction
                                 r12_perp = (2*randi(2)-3)*cross(ars.unitVector(r12_conn),r12_conns_b0);
                                 r12_patches_bi = cosd(180-theta_init)*ars.unitVector(r12_conn) + sind(180-theta_init)*r12_perp;
-                                r12_patches_bi_internal = ars.unitVector(o.bs(bi).r_internal(:,ib_end_b1).*units_bead2real - o.bs(bi).r_internal(:,ib_conn_b1).*units_bead2real);
-                                [R,failed_rot,r12_conn2] = o.optimizeR(r12_patches_bi,r12_patches_bi_internal,b0,bi,ib_conn_b0,ib_conn_b1,ib_conn2_b0,ib_conn2_b1,r12_conn,r12_eq_conn2,units_bead2real,tolerance_rot);
+                                r12_patches_bi_internal = ars.unitVector(o.bs(bi).r_internal(:,ib_end_b1) - o.bs(bi).r_internal(:,ib_conn_b1));
+                                [R,failed_rot,r12_conn2] = o.optimizeR(r12_patches_bi,r12_patches_bi_internal,b0,bi,ib_conn_b0,ib_conn_b1,ib_conn2_b0,ib_conn2_b1,r12_conn,r12_eq_conn2,tolerance_rot);
                                 if failed_rot
                                     attempts_rot = attempts_rot + 1;
                                     continue
@@ -429,7 +429,7 @@ classdef origami
 
 
         %%% optimize rotation matrix around a connected angle to satisfy a second connection
-        function [R,failed,r12_conn2] = optimizeR(o,r12_patches_bi,r12_patches_bi_internal,b0,bi,ib_conn_b0,ib_conn_b1,ib_conn2_b0,ib_conn2_b1,r12_conn,r12_eq_conn2,units_bead2real,tolerance)
+        function [R,failed,r12_conn2] = optimizeR(o,r12_patches_bi,r12_patches_bi_internal,b0,bi,ib_conn_b0,ib_conn_b1,ib_conn2_b0,ib_conn2_b1,r12_conn,r12_eq_conn2,tolerance)
             max_iterations = 1000;
             iteration = 0;
             initializing = true;
@@ -445,8 +445,8 @@ classdef origami
                 iteration = iteration + 1;
                 R = o.getRotation(r12_patches_bi,r12_patches_bi_internal,phi);
                 r_conn_bi = o.bs(b0).r(:,ib_conn_b0) + r12_conn;
-                r_conn_bi_internal = o.bs(bi).r_internal(:,ib_conn_b1).*units_bead2real;
-                r_conn2_bi_internal = o.bs(bi).r_internal(:,ib_conn2_b1).*units_bead2real;
+                r_conn_bi_internal = o.bs(bi).r_internal(:,ib_conn_b1);
+                r_conn2_bi_internal = o.bs(bi).r_internal(:,ib_conn2_b1);
                 r_conn2_bi = r_conn_bi + R'*(r_conn2_bi_internal-r_conn_bi_internal);
                 r_conn2_b0 = o.bs(b0).r(:,ib_conn2_b0);
                 r12_conn2 = r_conn2_bi-r_conn2_b0;

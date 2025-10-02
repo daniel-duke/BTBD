@@ -95,14 +95,11 @@ classdef block
 
         %%% get block index from location
         function ib = interpret_loc(b,loc)
-            if loc(1) == 'P'
-                patch_index = find(strcmp(b.patches, loc(3:end)));
-                if ~isempty(patch_index)
-                    ib = b.n-b.npatch+patch_index;
-                else
-                    error("Unknown patch type: " + loc(3:end) + ".")
-                end
-            elseif loc(1) == 'B'
+
+            %%% connection to structural bead
+            if length(loc) >= 2 && loc(1:2) == "B-"
+
+                %%% find helix
                 if loc(3) == 'L'
                     hi = b.hiL;
                 elseif loc(3) == 'M'
@@ -112,10 +109,33 @@ classdef block
                 else
                     error("Unknown helix type: " + loc(3) + ".")
                 end
-                zi = str2double(loc(4:end));
+
+                %%% find height
+                if length(loc) >= 4
+                    zi = str2double(loc(4:end));
+                else
+                    zi = 0;
+                end
+
+                %%% get bead index
                 ib = b.get_ib(hi,zi);
+
+            %%% connection to patch bead
             else
-                error("Unknown connection type: " + loc(1) + ".")
+
+                %%% find patch
+                if loc(1:2) == "P-"
+                    patch_index = find(strcmp(b.patches, loc(3:end)));
+                else
+                    patch_index = find(strcmp(b.patches, loc));
+                end
+
+                %%% get bead index
+                if ~isempty(patch_index)
+                    ib = b.n-b.npatch+patch_index;
+                else
+                    error("Unknown patch type: " + loc(3:end) + ".")
+                end
             end
         end
 
@@ -137,8 +157,8 @@ classdef block
                 randomize_block_dir = true;
             end
 
-            %%% for transforming bead units to real units
-            units_bead2real = [p.r12_helix;p.r12_helix;p.r12_bead];
+            %%% scale internal positions of structural beads to real units
+            b.r_internal(:,1:b.n_real) = b.r_internal(:,1:b.n_real).*[p.r12_helix;p.r12_helix;p.r12_bead];
 
             %%% placement attempt loop
             attempts = 0;
@@ -165,10 +185,10 @@ classdef block
                 end
     
                 %%% real bead absolute positions
-                com = r_start - R'*(b.r_internal(:,ib_conn).*units_bead2real);
+                com = r_start - R'*b.r_internal(:,ib_conn);
                 b.r = zeros(3,b.n);
                 for ib = 1:b.n_real
-                    b.r(:,ib) = com + R'*(b.r_internal(:,ib).*units_bead2real);
+                    b.r(:,ib) = com + R'*b.r_internal(:,ib);
                     overlap = ars.checkOverlap(b.r(:,ib),r_other,p.r12_cut_WCA,p.dbox);
                     if overlap
                         break
@@ -184,7 +204,7 @@ classdef block
                 %%% patch bead absolute positions
                 for pi = 1:b.npatch
                     ib = b.n-b.npatch+pi;
-                    b.r(:,ib) = com + R'*(b.r_internal(:,ib).*units_bead2real);
+                    b.r(:,ib) = com + R'*b.r_internal(:,ib);
                 end
 
                 %%% block successfully initiated
