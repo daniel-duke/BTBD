@@ -7,6 +7,7 @@ classdef origami
         nconn               % number of connections
         conns_bis           % connection block indices
         conns_ibs           % connection bead indices
+        conns_pot           % name of connection potential
         conns_r12_eq        % connection equilibrium separation
         nangle              % number of angles
         angles_bis          % angle block indices
@@ -14,7 +15,7 @@ classdef origami
         angles_theta_eq     % angle equilibrium theta
         angles_theta_init   % angle initial theta
         nlink5              % number of 5p linkers
-        link5s_name         % 5p linkers linker index
+        link5s_name         % 5p linkers linker name
         link5s_io           % 5p linkers bead index within origami
         nlink3              % number of 3p linker ends
         link3s_name         % 3p linkers name
@@ -35,6 +36,7 @@ classdef origami
             o.nconn = 0;
             o.conns_bis = [];
             o.conns_ibs = [];
+            o.conns_pot = strings();
             o.conns_r12_eq = [];
             o.nangle = 0;
             o.angles_bis = [];
@@ -63,12 +65,13 @@ classdef origami
 
 
         %%% add connection to origami
-        function o = add_conn(o,bi1,loc1,bi2,loc2,r12_eq)
+        function o = add_conn(o,bi1,loc1,bi2,loc2,pot,r12_eq)
             o.nconn = o.nconn + 1;
             o.conns_bis(:,o.nconn) = [bi1;bi2];
             ib1 = o.bs(bi1).interpret_loc(loc1);
             ib2 = o.bs(bi2).interpret_loc(loc2);
             o.conns_ibs(:,o.nconn) = [ib1;ib2];
+            o.conns_pot(o.nconn) = pot;
             o.conns_r12_eq(o.nconn) = r12_eq;
         end
 
@@ -162,6 +165,11 @@ classdef origami
             max_attempts_place = 1000;
             tolerance_rot = 0.001;
             U_overstretched = 10;
+
+            %%% scale internal positions of structural beads to real units
+            for bi = 1:length(o.bs)
+                o.bs(bi).r_internal(:,1:o.bs(bi).n_real) = o.bs(bi).r_internal(:,1:o.bs(bi).n_real).*[p.r12_helix;p.r12_helix;p.r12_bead];
+            end
 
             %%% configuraiton attempt loop
             disp("Looking for configuration...")

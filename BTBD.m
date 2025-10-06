@@ -59,7 +59,7 @@ inFile = "./designs/control.txt";
 [os,origami_types,linker_types,potentials] = read_input(inFile);
 
 %%% output parameters
-outFold = "/Users/dduke/Files/block_tether/free_origami/lammps/active/";
+outFold = "/Users/dduke/Files/block_tether/network/experiment/active/";
 nsim = 1;
 
 %%% simulation parameters
@@ -231,10 +231,10 @@ function [os,origami_types,linker_types,potential_types] = read_input(inFile)
         %%% set the appropriate value
         switch extract{1}
             case 'potential'
-                potential.type = extract{3};
-                potential.r12_eq = str2double(extract{4});
-                potential.parameters = str2double(extract(5:end));
-                potential_types(extract{2}) = potential;
+                potential_type.style = extract{3};
+                potential_type.r12_eq = str2double(extract{4});
+                potential_type.parameters = str2double(extract(5:end));
+                potential_types(extract{2}) = potential_type;
             case 'block'
                 block_templates(extract{2}) = block(convertCharsToStrings(extract{3}),str2double(extract{4}));
             case 'patch'
@@ -246,7 +246,8 @@ function [os,origami_types,linker_types,potential_types] = read_input(inFile)
                 origami_type.angles_theta_eq = [];
                 origami_types(extract{2}) = origami_type;
             case 'linker'
-                linker_type.r12_eq = str2double(extract{3});
+                linker_type.pot = string(extract{3});
+                linker_type.r12_eq = potential_types(extract{3}).r12_eq;
                 linker_types(extract{2}) = linker_type;
             otherwise
                 if isKey(origami_types,extract{1})
@@ -259,7 +260,8 @@ function [os,origami_types,linker_types,potential_types] = read_input(inFile)
                         case 'rigid'
                             origami_templates(extract{1}).rigid = string(extract{3});
                         case 'conn'
-                            origami_templates(extract{1}) = origami_templates(extract{1}).add_conn(str2double(extract{3}),extract{4},str2double(extract{5}),extract{6},str2double(extract{7}));
+                            r12_eq = potential_types(extract{7}).r12_eq;
+                            origami_templates(extract{1}) = origami_templates(extract{1}).add_conn(str2double(extract{3}),extract{4},str2double(extract{5}),extract{6},string(extract{7}),r12_eq);
                             origami_types(extract{1}).conns_r12_eq = [ origami_types(extract{1}).conns_r12_eq potential_types(extract{7}).r12_eq ];
                         case 'angle'
                             theta_init = str2double(extract{11});
@@ -589,9 +591,9 @@ function write_input(inputFile,p,origami_types,linker_types,potential_types)
     end
 
     %%% angles
+    fprintf(f,...
+        "angle_style     harmonic\n");
     if nangleType > 0
-        fprintf(f,...
-            "angle_style     harmonic\n");
         angle_type = 0;
         for o_name = keys(origami_types)'
             for theta_eq = origami_types(o_name).angles_theta_eq
@@ -603,15 +605,13 @@ function write_input(inputFile,p,origami_types,linker_types,potential_types)
     end
 
     %%% linker angle
-    if nlinker > 0
-        if nangleType == 0
-            angle_type = 1;
-        else
-            angle_type = angle_type + 1;
-        end
-        fprintf(f,strcat(...
-            "angle_coeff     ", num2str(angle_type), " ", ars.fstring(100/2,0,2), " ", ars.fstring(180,0,2), "\n"));
+    if nangleType == 0
+        angle_type = 1;
+    else
+        angle_type = angle_type + 1;
     end
+    fprintf(f,strcat(...
+        "angle_coeff     ", num2str(angle_type), " ", ars.fstring(100/2,0,2), " ", ars.fstring(180,0,2), "\n"));
     
     %%% linker group
     if nlinker > 0

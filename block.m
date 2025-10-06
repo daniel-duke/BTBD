@@ -157,9 +157,6 @@ classdef block
                 randomize_block_dir = true;
             end
 
-            %%% scale internal positions of structural beads to real units
-            b.r_internal(:,1:b.n_real) = b.r_internal(:,1:b.n_real).*[p.r12_helix;p.r12_helix;p.r12_bead];
-
             %%% placement attempt loop
             attempts = 0;
             while true
