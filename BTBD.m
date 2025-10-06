@@ -55,22 +55,22 @@ rng(43)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% read input
-inFile = "./designs/triarm_ds3.txt";
+inFile = "./designs/triarm_ds3_1HB.txt";
 [os,origami_types,linker_types] = read_input(inFile);
 
 %%% output parameters
-outFold = "/Users/dduke/Files/block_tether/network/experiment/big_v5/";
+outFold = "/Users/dduke/Files/block_tether/network/experiment/active/";
 nsim = 1;
 
 %%% simulation parameters
 nstep_eq        = 1E4;      % steps         - if and how long to equilibrate/shrink
 shrink_ratio    = 1;        % none          - box compression (final/initial)
-nstep_prod      = 3E7;      % steps         - if and how long to run producton
-dump_every      = 1E5;      % steps         - how often to write to output
+nstep_prod      = 1E6;      % steps         - if and how long to run producton
+dump_every      = 1E4;      % steps         - how often to write to output
 
 %%% computational parameters
 dt              = 0.08;     % ns            - time step
-dbox            = 320;      % nm            - periodic boundary diameter
+dbox            = 200;      % nm            - periodic boundary diameter
 verlet_skin     = 4;        % nm            - width of neighbor list skin
 neigh_every     = 1E1;      % steps         - how often to consider updating neighbor list
 react_every     = 1E1;      % steps         - how often to check for linker hybridization
