@@ -1,6 +1,6 @@
 %%% Housekeeping
 clc; clear; close all;
-rng(43)
+rng(41)
 
 %%% To Do
 % replace bond write/break with react if unlinking is desired.
@@ -55,8 +55,8 @@ rng(43)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% read input
-inFile = "./designs/control.txt";
-[os,origami_types,linker_types,potentials] = read_input(inFile);
+inFile = "./designs/triarm_ds3.txt";
+[os,origami_types,linker_types,potential_types] = read_input(inFile);
 
 %%% output parameters
 outFold = "/Users/dduke/Files/block_tether/network/experiment/active/";
@@ -65,8 +65,8 @@ nsim = 1;
 %%% simulation parameters
 nstep_eq        = 1E4;      % steps         - if and how long to equilibrate/shrink
 shrink_ratio    = 1;        % none          - box compression (final/initial)
-nstep_prod      = 3E7;      % steps         - if and how long to run producton
-dump_every      = 1E5;      % steps         - how often to write to output
+nstep_prod      = 1E6;      % steps         - if and how long to run producton
+dump_every      = 1E4;      % steps         - how often to write to output
 
 %%% computational parameters
 dt              = 0.08;     % ns            - time step
@@ -81,16 +81,12 @@ sigma           = 10;       % nm            - WCA distance parameter
 epsilon         = 1;        % kcal/mol      - WCA energy parameter
 r12_bead        = 5;        % nm            - helix separation
 r12_helix       = 5;        % nm            - bead separation
-k_x_conn        = 1;        % kcal/mol/nm2  - connection spring constant
-k_x_linker      = 1;        % kcal/mol/nm2  - linker spring constant
-U_cut_linker    = 8;        % kcal/mol      - linker reaction cutoff
 k_theta         = 6;        % kcal/mol/rad2 - angle spring constant
 
 %%% create parameters class
 p = parameters(nstep_eq,shrink_ratio,nstep_prod,dump_every,...
                dt,dbox,verlet_skin,neigh_every,react_every,...
-               T,sigma,epsilon,r12_bead,r12_helix,...
-               k_x_conn,k_x_linker,U_cut_linker,k_theta);
+               T,sigma,epsilon,r12_bead,r12_helix,k_theta);
 
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -115,11 +111,11 @@ for i = 1:nsim
     %%% write lammps simulation geometry file
     geoFile = simFold + "geometry.in";
     geoVisFile = simFold + "geometry_vis.in";
-    compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,dbox);
+    compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,potential_types,dbox);
     
     %%% write lammps input file
     inputFile = simFold + "lammps.in";
-    write_input(inputFile,p,origami_types,linker_types,potentials)
+    write_input(inputFile,p,origami_types,linker_types,potential_types)
 end
 
 
@@ -231,10 +227,7 @@ function [os,origami_types,linker_types,potential_types] = read_input(inFile)
         %%% set the appropriate value
         switch extract{1}
             case 'potential'
-                potential_type.style = extract{3};
-                potential_type.r12_eq = str2double(extract{4});
-                potential_type.parameters = str2double(extract(5:end));
-                potential_types(extract{2}) = potential_type;
+                potential_types(extract{2}) = potential(string(extract{3}),str2double(extract{4}),str2double(extract(5:end)),1+numEntries(potential_types));
             case 'block'
                 block_templates(extract{2}) = block(convertCharsToStrings(extract{3}),str2double(extract{4}));
             case 'patch'
@@ -244,10 +237,12 @@ function [os,origami_types,linker_types,potential_types] = read_input(inFile)
                 origami_type.count = str2double(extract{3});
                 origami_type.conns_r12_eq = [];
                 origami_type.angles_theta_eq = [];
+                origami_type.index = 1 + numEntries(origami_types);
                 origami_types(extract{2}) = origami_type;
             case 'linker'
                 linker_type.pot = string(extract{3});
-                linker_type.r12_eq = potential_types(extract{3}).r12_eq;
+                linker_type.r12_cut = str2double(extract{4});
+                linker_type.index = 1 + numEntries(linker_types);
                 linker_types(extract{2}) = linker_type;
             otherwise
                 if isKey(origami_types,extract{1})
@@ -260,8 +255,8 @@ function [os,origami_types,linker_types,potential_types] = read_input(inFile)
                         case 'rigid'
                             origami_templates(extract{1}).rigid = string(extract{3});
                         case 'conn'
-                            r12_eq = potential_types(extract{7}).r12_eq;
-                            origami_templates(extract{1}) = origami_templates(extract{1}).add_conn(str2double(extract{3}),extract{4},str2double(extract{5}),extract{6},string(extract{7}),r12_eq);
+                            pot = potential_types(extract{7});
+                            origami_templates(extract{1}) = origami_templates(extract{1}).add_conn(str2double(extract{3}),extract{4},str2double(extract{5}),extract{6},pot);
                             origami_types(extract{1}).conns_r12_eq = [ origami_types(extract{1}).conns_r12_eq potential_types(extract{7}).r12_eq ];
                         case 'angle'
                             theta_init = str2double(extract{11});
@@ -299,7 +294,7 @@ end
 
 
 %%% write lammps geometry file
-function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,dbox)
+function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,potential_types,dbox)
 
     %%% grouping atoms
     % atom ID - universal bead index
@@ -315,13 +310,11 @@ function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,dbox)
     nconn = sum([os.nconn]);
     nangle = sum([os.nangle]);
 
-    %%% count bond types
-    nlinker = numEntries(linker_types);
-    nconnType = length([values(origami_types).conns_r12_eq]);
-    nbondType = nlinker+nconnType+1;
+    %%% count types
+    natomType = 2 + numEntries(linker_types)*2;
+    nbondType = 1 + numEntries(potential_types);
 
     %%% initialize mass info
-    natomType = 2 + nlinker*2;
     masses = ones(1,natomType);
     mass_patch = 0.01;
     masses(2) = mass_patch;
@@ -355,8 +348,8 @@ function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,dbox)
         for lio = 1:os(oi).nlink5
             io = os(oi).link5s_io(lio);
             iu = get_iu(oi,io);
-            o_name = os(oi).link5s_name(lio);
-            li = find(keys(linker_types)==o_name);
+            l_name = os(oi).link5s_name(lio);
+            li = linker_types(l_name).index;
             atomType = 1 + 2*li;
             atoms(2,iu) = atomType;
             if os(oi).is_patch(io)
@@ -366,8 +359,8 @@ function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,dbox)
         for lio = 1:os(oi).nlink3
             io = os(oi).link3s_io(lio);
             iu = get_iu(oi,io);
-            o_name = os(oi).link3s_name(lio);
-            li = find(keys(linker_types)==o_name);
+            l_name = os(oi).link3s_name(lio);
+            li = linker_types(l_name).index;
             atomType = 2 + 2*li;
             atoms(2,iu) = atomType;
             if os(oi).is_patch(io)
@@ -379,20 +372,16 @@ function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,dbox)
     %%% connection bonds
     bonds = zeros(3,0);
     if nconn > 0
-        bond_type = nlinker;
         bond_count = 0;
-        for o_name = keys(origami_types)'
-            ois = find([os.name]==o_name);
-            for ci = 1:length(origami_types(o_name).conns_r12_eq)
-                bond_type = bond_type + 1;
-                for oi = ois
-                    bond_count = bond_count + 1;
-                    iu1 = get_iu( oi, os(oi).get_io( os(oi).conns_bis(1,ci), os(oi).conns_ibs(1,ci) ) );
-                    iu2 = get_iu( oi, os(oi).get_io( os(oi).conns_bis(2,ci), os(oi).conns_ibs(2,ci) ) );
-                    bonds(1,bond_count) = bond_type;
-                    bonds(2,bond_count) = iu1;
-                    bonds(3,bond_count) = iu2;
-                end
+        for oi = 1:length(os)
+            for ci = 1:length(os(oi).conns_pot)
+                bond_count = bond_count + 1;
+                bond_type = os(oi).conns_pot(ci).index;
+                iu1 = get_iu( oi, os(oi).get_io( os(oi).conns_bis(1,ci), os(oi).conns_ibs(1,ci) ) );
+                iu2 = get_iu( oi, os(oi).get_io( os(oi).conns_bis(2,ci), os(oi).conns_ibs(2,ci) ) );
+                bonds(1,bond_count) = bond_type;
+                bonds(2,bond_count) = iu1;
+                bonds(3,bond_count) = iu2;
             end
         end
     end
@@ -465,20 +454,20 @@ function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,dbox)
             atoms_vis(2,iu) = norigami_type + 1;
         else
             o_name = os(oi).name;
-            atoms_vis(2,iu) = find(keys(origami_types)==o_name);
+            atoms_vis(2,iu) = origami_types(o_name).index;
         end
     end
     for oi = 1:length(os)
         for lio = 1:os(oi).nlink5
             io = os(oi).link5s_io(lio);
             iu = get_iu(oi,io);
-            li = find(keys(linker_types)==os(oi).link5s_name(lio));
+            li = linker_types(os(oi).link5s_name(lio)).index;
             atoms_vis(2,iu) = norigami_type + 1 + li;
         end
         for lio = 1:os(oi).nlink3
             io = os(oi).link3s_io(lio);
             iu = get_iu(oi,io);
-            li = find(keys(linker_types)==os(oi).link3s_name(lio));
+            li = linker_types(os(oi).link3s_name(lio)).index;
             atoms_vis(2,iu) = norigami_type + 1 + li;
         end
     end
@@ -493,26 +482,20 @@ function write_input(inputFile,p,origami_types,linker_types,potential_types)
 
     %%% get counts
     nlinker = numEntries(linker_types);
-    natomType = 2+nlinker*2;
-    nconnType = length([values(origami_types).conns_r12_eq]);
-    nbondType = nlinker+nconnType+1;
+    natomType = 2 + nlinker*2;
+    nbondType = 1 + numEntries(potential_types);
     nangleType = length([values(origami_types).angles_theta_eq]);
 
     %%% calculate communication cutoff
     U_max = 12;
     comm_cutoff = p.r12_cut_WCA;
-    for o_name = keys(origami_types)'
-        for r12_eq = origami_types(o_name).conns_r12_eq
-            r12_max = r12_eq + sqrt(2*U_max/p.k_x_conn);
-            comm_cutoff = max([comm_cutoff,r12_max]);
-        end
+    for p_name = keys(potential_types)'
+        r12_max = potential_types(p_name).calc_separation(U_max);
+        comm_cutoff = max([comm_cutoff,r12_max]);
     end
-    if nlinker > 0
-        for l_name = keys(linker_types)'
-            r12_cut = linker_types(l_name).r12_eq + sqrt(2*p.U_cut_linker/p.k_x_linker);
-            r12_max = linker_types(l_name).r12_eq + sqrt(2*U_max/p.k_x_linker);
-            comm_cutoff = max([comm_cutoff,r12_cut,r12_max]);
-        end
+    for l_name = keys(linker_types)'
+        r12_cut = linker_types(l_name).r12_cut;
+        comm_cutoff = max([comm_cutoff,r12_cut]);
     end
 
     %%% open file
@@ -548,46 +531,24 @@ function write_input(inputFile,p,origami_types,linker_types,potential_types)
         "pair_coeff      1 1 lj/cut ", ars.fstring(p.epsilon,0,2), " ", ars.fstring(p.sigma,0,2), "\n",...
         "pair_modify     pair lj/cut shift yes\n"));
 
-    %%% prepare bonds
-    if nbondType > 1
-        fprintf(f,...
-            "bond_style      hybrid harmonic zero\n");
-        bond_type = 0;
-    else
-        fprintf(f,...
-            "bond_style      zero\n");
-    end
-
-
-    %%% linker bonds
-    if nlinker > 0
-        for l_name = keys(linker_types)'
-            bond_type = bond_type + 1;
-            r12_eq = linker_types(l_name).r12_eq;
-            fprintf(f,strcat(...
-                "bond_coeff      ", num2str(bond_type), " harmonic ", ars.fstring(p.k_x_linker/2,0,2), " ", ars.fstring(r12_eq,0,2), "\n"));
-        end
-    end
-
-    %%% connection bonds
-    if nconnType > 0
-        for o_name = keys(origami_types)'
-            for r12_eq = origami_types(o_name).conns_r12_eq
-                bond_type = bond_type + 1;
-                fprintf(f,strcat(...
-                    "bond_coeff      ", num2str(bond_type), " harmonic ", ars.fstring(p.k_x_conn/2,0,2), " ", ars.fstring(r12_eq,0,2), "\n"));
-            end
-        end
-    end
-
-    %%% dummy bond
-    if nbondType > 1
-        bond_type = bond_type + 1;
+    %%% bonds
+    if nbondType == 1
         fprintf(f,strcat(...
-            "bond_coeff      ", num2str(bond_type), " zero\n"));
-    else
-        fprintf(f,strcat(...
+            "bond_style      zero\n",...
             "bond_coeff      1\n"));
+    else
+        fprintf(f,...
+            "bond_style      hybrid zero");
+        styles = unique([values(potential_types).style]);
+        for si = 1:length(styles)
+            fprintf(f,strcat(" ", styles{si}));
+        end
+        fprintf(f,"\n");
+        for p_name = keys(potential_types)'
+            potential_types(p_name).write_potential(f);
+        end
+        fprintf(f,strcat(...
+            "bond_coeff      ", num2str(nbondType), " zero\n"));
     end
 
     %%% angles
@@ -633,7 +594,7 @@ function write_input(inputFile,p,origami_types,linker_types,potential_types)
             "timestep        ", num2str(p.dt/10), "\n"));
         if p.shrink_ratio ~= 1
             fprintf(f,strcat(...
-                "fix             deformation all deform 1 &\n",...
+                "fix             shrink all deform 1 &\n",...
                 "                x final ", ars.fstring(-p.dbox/2*p.shrink_ratio,0,2), " ", ars.fstring(p.dbox/2*p.shrink_ratio,0,2), " &\n",...
                 "                y final ", ars.fstring(-p.dbox/2*p.shrink_ratio,0,2), " ", ars.fstring(p.dbox/2*p.shrink_ratio,0,2), " &\n",...
                 "                z final ", ars.fstring(-p.dbox/2*p.shrink_ratio,0,2), " ", ars.fstring(p.dbox/2*p.shrink_ratio,0,2), "\n"));
@@ -642,7 +603,7 @@ function write_input(inputFile,p,origami_types,linker_types,potential_types)
             "run             ", num2str(p.nstep_eq), "\n"));
         if p.shrink_ratio ~= 1
             fprintf(f,strcat(...
-                "unfix           deformation\n"));
+                "unfix           shrink\n"));
         end
         fprintf(f,strcat(...
             "reset_timestep  0\n\n"));
@@ -652,10 +613,11 @@ function write_input(inputFile,p,origami_types,linker_types,potential_types)
     if nlinker > 0
         fprintf(f,"## Reactions\n");
         for l_name = keys(linker_types)'
-            li = find(keys(linker_types)==l_name);
-            r12_cut = linker_types(l_name).r12_eq + sqrt(2*p.U_cut_linker/p.k_x_linker);
+            li = linker_types(l_name).index;
             fixName = strcat("linker",num2str(li));
-            add_bond_create(f,fixName,"linker",p.react_every,li*2+1,li*2+2,r12_cut,li,angle_type);
+            r12_cut = linker_types(l_name).r12_cut;
+            bond_type = potential_types(linker_types(l_name).pot).index;
+            write_bond_create(f,fixName,"linker",p.react_every,1+li*2,2+li*2,r12_cut,bond_type,angle_type);
         end
         fprintf(f,"\n");
     end
@@ -689,14 +651,14 @@ end
 
 
 %%% write fix bond create command
-function add_bond_create(f,fixName,groupName,react_every,atomType1,atomType2,r12_cut,bondType,angleType)
+function write_bond_create(f,fixName,groupName,react_every,atomType1,atomType2,r12_cut,bond_type,angle_type)
     fprintf(f,strcat(...
         "fix             ", fixName, " ", groupName, " ",...
         "bond/create/angle ", num2str(react_every), " ",...
         num2str(atomType1), " ",num2str(atomType2), " ",...
-        ars.fstring(r12_cut,0,2), " ", num2str(bondType), " "));
-    if angleType ~= 0 
-        fprintf(f,strcat("atype ", num2str(angleType), " aconstrain 120 180 "));
+        ars.fstring(r12_cut,0,2), " ", num2str(bond_type), " "));
+    if angle_type ~= 0 
+        fprintf(f,strcat("atype ", num2str(angle_type), " aconstrain 120 180 "));
     end
     fprintf(f,strcat(...
         "iparam 1 ", num2str(atomType1), " ",...

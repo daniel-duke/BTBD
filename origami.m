@@ -8,7 +8,6 @@ classdef origami
         conns_bis           % connection block indices
         conns_ibs           % connection bead indices
         conns_pot           % name of connection potential
-        conns_r12_eq        % connection equilibrium separation
         nangle              % number of angles
         angles_bis          % angle block indices
         angles_ibs          % angle bead indices
@@ -36,8 +35,7 @@ classdef origami
             o.nconn = 0;
             o.conns_bis = [];
             o.conns_ibs = [];
-            o.conns_pot = strings();
-            o.conns_r12_eq = [];
+            o.conns_pot = potential.empty;
             o.nangle = 0;
             o.angles_bis = [];
             o.angles_ibs = [];
@@ -65,14 +63,13 @@ classdef origami
 
 
         %%% add connection to origami
-        function o = add_conn(o,bi1,loc1,bi2,loc2,pot,r12_eq)
+        function o = add_conn(o,bi1,loc1,bi2,loc2,pot)
             o.nconn = o.nconn + 1;
             o.conns_bis(:,o.nconn) = [bi1;bi2];
             ib1 = o.bs(bi1).interpret_loc(loc1);
             ib2 = o.bs(bi2).interpret_loc(loc2);
             o.conns_ibs(:,o.nconn) = [ib1;ib2];
             o.conns_pot(o.nconn) = pot;
-            o.conns_r12_eq(o.nconn) = r12_eq;
         end
 
 
@@ -90,7 +87,7 @@ classdef origami
         end
 
 
-        %%% add connection to origami
+        %%% add linker to origami
         function o = add_linker(o,name,is_5p,bi,loc)
             if bi == "A"
                 bi_min = 1;
@@ -143,10 +140,9 @@ classdef origami
 
 
         %%% ensure connections are not too strained
-        function failed = are_conns_overstretched(o,p,U_overstretched)
+        function failed = are_conns_overstretched(o,U_overstretched)
             for ci = 1:o.nconn
-                r12_eq = o.conns_r12_eq(ci);
-                r12_overstretched = r12_eq + sqrt(2*U_overstretched/p.k_x_conn);
+                r12_overstretched = o.conns_pot(ci).calc_separation(U_overstretched);
                 r1 = o.bs(o.conns_bis(1,ci)).r(:,o.conns_ibs(1,ci));
                 r2 = o.bs(o.conns_bis(2,ci)).r(:,o.conns_ibs(2,ci));
                 if norm(r1-r2) > r12_overstretched
@@ -200,7 +196,7 @@ classdef origami
                                 b0 = o.conns_bis(1,ci);
                                 ib_conn_b0 = o.conns_ibs(1,ci);
                                 ib_conn_b1 = o.conns_ibs(2,ci);
-                                r12_conn = o.conns_r12_eq(ci);
+                                r12_conn = o.conns_pot(ci).r12_eq;
                                 r12_conn_mag = r12_conn;
                                 break
                             end
@@ -209,7 +205,7 @@ classdef origami
                                 b0 = o.conns_bis(2,ci);
                                 ib_conn_b0 = o.conns_ibs(2,ci);
                                 ib_conn_b1 = o.conns_ibs(1,ci);
-                                r12_conn = o.conns_r12_eq(ci);
+                                r12_conn = o.conns_pot(ci).r12_eq;
                                 r12_conn_mag = r12_conn;
                                 break
                             end
@@ -250,14 +246,14 @@ classdef origami
                                 if o.conns_bis(1,ci) == b0
                                     ib_conn2_b0 = o.conns_ibs(1,ci);
                                     ib_conn2_b1 = o.conns_ibs(2,ci);
-                                    r12_eq_conn2 = o.conns_r12_eq(ci);
+                                    r12_eq_conn2 = o.conns_pot(ci).r12_eq;
                                     break
                                 end
                             elseif o.conns_bis(1,ci) == bi
                                 if o.conns_bis(2,ci) == b0
                                     ib_conn2_b0 = o.conns_ibs(2,ci);
                                     ib_conn2_b1 = o.conns_ibs(1,ci);
-                                    r12_eq_conn2 = o.conns_r12_eq(ci);
+                                    r12_eq_conn2 = o.conns_pot(ci).r12_eq;
                                     break
                                 end
                             elseif ci == o.nconn
@@ -354,7 +350,7 @@ classdef origami
                 end
 
                 %%% reset if connection overstretch
-                if are_conns_overstretched(o,p,U_overstretched)
+                if are_conns_overstretched(o,U_overstretched)
                     attempts_conf = attempts_conf + 1;
                     continue
                 end

@@ -1,6 +1,6 @@
 %%% potentials
 potential ssC   harmonic 6 1        % style, equilibrium separation, parameter(s)
-potential ssL   harmonic 6 1        % style, equilibrium separation, parameter(s)
+potential ssL   harmonic 2 1        % style, equilibrium separation, parameter(s)
 
 %%% blocks
 block B1        1HB 11              % pattern in xy-plane, number of beads in z-axis
@@ -28,9 +28,9 @@ O2 blocks       B2 B2               % block type(s)
 O2 conn         1 CM 2 CM ssC       % block index + location 1 and 2, potential type
 
 %%% linkers
-linker L1       ssL                 % potential type
+linker L1       ssL 3               % potential type, cutoff radius
 L1 5p           O1 A L1             % origami type, block indices, location
 L1 3p           O2 A L2             % origami type, block indices, location
-linker L2       ssL                 % potential type
+linker L2       ssL 3               % potential type, cutoff radius
 L2 5p           O1 A L2             % origami type, block indices, location
 L2 3p           O2 A L1             % origami type, block indices, location
