@@ -141,19 +141,18 @@ classdef block
 
 
         %%% initialize block with bead indexed by ib_conn connected by r12_conn to r_source 
-        function [b,failed,r_other] = init_positions(b,p,r_source,r12_conn,ib_conn,R,r_other)
+        function [b,failed,r_other] = init_positions(b,p,r_source,r12_uv_conn,r12_eq_conn,ib_conn,R,r_other)
             max_attempts = 100;
 
             %%% determine if connection direction should be random
             randomize_conn_dir = false;
-            if isscalar(r12_conn)
+            if r12_uv_conn == false
                 randomize_conn_dir = true;
-                r12_conn_mag = norm(r12_conn);
             end
 
             %%% determine if block direction should be random
             randomize_block_dir = false;
-            if R == 0
+            if R == false
                 randomize_block_dir = true;
             end
 
@@ -169,23 +168,23 @@ classdef block
 
                 %%% get position of connected bead
                 if randomize_conn_dir
-                    r12_conn = r12_conn_mag*ars.randUnitVec();
+                    r12_uv_conn = ars.randUnitVec();
                 end
-                r_start = r_source + r12_conn;
 
                 %%% get direction of block
                 if randomize_block_dir
                     z_basis = ars.randUnitVec();
                     y_basis = ars.unitVector(cross(z_basis,ars.randUnitVec()));
                     x_basis = cross(y_basis,z_basis);
-                    R = [x_basis,y_basis,z_basis]';
+                    R = [x_basis,y_basis,z_basis];
                 end
     
                 %%% real bead absolute positions
-                com = r_start - R'*b.r_internal(:,ib_conn);
+                r_start = r_source + r12_eq_conn.*r12_uv_conn;
+                com = r_start - R*b.r_internal(:,ib_conn);
                 b.r = zeros(3,b.n);
                 for ib = 1:b.n_real
-                    b.r(:,ib) = com + R'*b.r_internal(:,ib);
+                    b.r(:,ib) = com + R*b.r_internal(:,ib);
                     overlap = ars.checkOverlap(b.r(:,ib),r_other,p.r12_cut_WCA,p.dbox);
                     if overlap
                         break
@@ -201,7 +200,7 @@ classdef block
                 %%% patch bead absolute positions
                 for pi = 1:b.npatch
                     ib = b.n-b.npatch+pi;
-                    b.r(:,ib) = com + R'*b.r_internal(:,ib);
+                    b.r(:,ib) = com + R*b.r_internal(:,ib);
                 end
 
                 %%% block successfully initiated

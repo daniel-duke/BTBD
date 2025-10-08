@@ -3,9 +3,10 @@ clc; clear; close all;
 rng(42)
 
 %%% To Do
-% replace bond write/break with react if unlinking is desired.
-% add option to set linker and connection spring constant.
-% add option to initialize block from two flexible connections.
+% add loop to check connections after each loop.
+% add keyword/value loops for any optional arguments.
+% use fix bond react.
+% update script description.
 
 %%% Notation
 % r - position vector
@@ -56,7 +57,7 @@ rng(42)
 
 %%% read input
 inFile = "./designs/triarm_ds3.txt";
-[os,origami_types,linker_types,potential_types,angle_types] = read_input(inFile);
+[os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile);
 
 %%% output parameters
 outFold = "/Users/dduke/Files/block_tether/network/experiment/active/";
@@ -111,11 +112,11 @@ for i = 1:nsim
     %%% write lammps simulation geometry file
     geoFile = simFold + "geometry.in";
     geoVisFile = simFold + "geometry_vis.in";
-    compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,potential_types,dbox);
+    compose_geo(geoFile,geoVisFile,os,nABAtype,dbox);
     
     %%% write lammps input file
     inputFile = simFold + "lammps.in";
-    write_input(inputFile,p,linker_types,potential_types,angle_types)
+    write_input(inputFile,p,linker_types,pot_types,apot_types)
 end
 
 
@@ -193,7 +194,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% read input file and create corresponding origami objects
-function [os,origami_types,linker_types,potential_types,angle_types] = read_input(inFile)
+function [os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
 
     %%% open file
     f = fopen(inFile, 'r');
@@ -202,11 +203,11 @@ function [os,origami_types,linker_types,potential_types,angle_types] = read_inpu
     end
 
     %%% initialize dictionaries
-    potential_types = dictionary();
-    angle_types = dictionary();
+    pot_types = dictionary();
+    apot_types = dictionary();
     block_templates = dictionary();
-    origami_types = dictionary();
     origami_templates = dictionary();
+    origami_counts = dictionary();
     linker_types = dictionary();
 
     %%% loop over lines
@@ -225,69 +226,130 @@ function [os,origami_types,linker_types,potential_types,angle_types] = read_inpu
             continue
         end
 
-        %%% set the appropriate value
+        %%% log input
         switch extract{1}
-            case 'potential'
-                potential_types(extract{2}) = potential(string(extract{3}),str2double(extract{4}),str2double(extract(5:end)),1+numEntries(potential_types));
+
+            %%% define bond potential
+            case 'bond_pot'
+                style = string(extract{3});
+                r12_eq = str2double(extract{4});
+                params = str2double(extract(5:end));
+                index = 1 + numEntries(pot_types);
+                pot_types(extract{2}) = bond_pot(style,r12_eq,params,index);
+
+            %%% define angle potential
             case 'angle_pot'
-                angle_types(extract{2}) = angle_pot(str2double(extract{3}),str2double(extract{4}),1+numEntries(angle_types));
+                theta_eq = str2double(extract{3});
+                k_theta = str2double(extract{4});
+                index = 1+numEntries(apot_types);
+                apot_types(extract{2}) = angle_pot(theta_eq,k_theta,index);
+
+            %%% define block
             case 'block'
-                block_templates(extract{2}) = block(convertCharsToStrings(extract{3}),str2double(extract{4}));
+                pattern_label = convertCharsToStrings(extract{3});
+                n_helix = str2double(extract{4});
+                block_templates(extract{2}) = block(pattern_label,n_helix);
+
+            %%% add patch to block
             case 'patch'
-                block_templates(extract{3}) = block_templates(extract{3}).add_patch(extract{2},str2double(extract{4}),str2double(extract{5}),str2double(extract{6}));
+                name = extract{2};
+                x = str2double(extract{4});
+                y = str2double(extract{5});
+                z = str2double(extract{6});
+                block_templates(extract{3}) = block_templates(extract{3}).add_patch(name,x,y,z);
+
+            %%% initialize origami
             case 'origami'
-                origami_templates(extract{2}) = origami(string(extract{2}));
-                origami_type.count = str2double(extract{3});
-                origami_type.index = 1 + numEntries(origami_types);
-                origami_types(extract{2}) = origami_type;
+                index = 1 + numEntries(origami_templates);
+                origami_templates(extract{2}) = origami(index);
+                origami_counts(extract{2}) = str2double(extract{3});
+
+            %%% initialize linker
             case 'linker'
-                linker_type.pot = string(extract{3});
-                linker_type.r12_cut = str2double(extract{4});
-                linker_type.index = 1 + numEntries(linker_types);
-                linker_type.angle_pot_index = 0;
-                linker_type.theta_min = 0;
-                linker_type.theta_max = 180;
-                linker_types(extract{2}) = linker_type;
+                pot_index = string(extract{3});
+                r12_cut = str2double(extract{4});
+                index = 1 + numEntries(linker_types);
+                linker_types(extract{2}) = linker(pot_index,r12_cut,index);
+            
+           %%% add features to origamis and linkers
             otherwise
-                if isKey(origami_types,extract{1})
+
+                %%% add feature to origami
+                if numEntries(origami_templates) > 0 && isKey(origami_templates,extract{1})
                     switch extract{2}
-                        case 'blocks'
-                            for bi = 1:length(extract)-2
-                                b = block_templates(extract{bi+2});
-                                origami_templates(extract{1}) = origami_templates(extract{1}).add_block(b);
-                            end
+
+                         %%% set rigidity
                         case 'rigid'
                             origami_templates(extract{1}).rigid = string(extract{3});
-                        case 'conn'
-                            pot = potential_types(extract{7});
-                            origami_templates(extract{1}) = origami_templates(extract{1}).add_conn(str2double(extract{3}),extract{4},str2double(extract{5}),extract{6},pot);
-                        case 'angle'
-                            apot = angle_types(extract{11});
-                            theta_init = apot.theta_eq;
-                            if length(extract) > 11
-                                theta_init = str2double(extract{12});
+
+                         %%% set random seed for initialization
+                        case 'rseed'
+                            origami_templates(extract{1}).rseed = str2double(extract{3});
+
+                        %%% add blocks
+                        case 'blocks'
+                            for ei = 3:length(extract)
+                                b = block_templates(extract{ei});
+                                origami_templates(extract{1}) = origami_templates(extract{1}).add_block(b);
                             end
-                            origami_templates(extract{1}) = origami_templates(extract{1}).add_angle(str2double(extract{3}),extract{4},str2double(extract{5}),extract{6},str2double(extract{7}),extract{8},str2double(extract{9}),extract{10},apot,theta_init);
+
+                        %%% add connection
+                        case 'conn'
+                            bi1 = str2double(extract{3});
+                            loc1 = extract{4};
+                            bi2 = str2double(extract{5});
+                            loc2 = extract{6};
+                            pot = pot_types(extract{7});
+                            origami_templates(extract{1}) = origami_templates(extract{1}).add_conn(bi1,loc1,bi2,loc2,pot);
+                        
+                        %%% add angle
+                        case 'angle'
+                            bi1 = str2double(extract{3});
+                            loc11 = extract{4};
+                            loc12 = extract{5};
+                            bi2 = str2double(extract{6});
+                            loc21 = extract{7};
+                            loc22 = extract{8};
+                            apot = apot_types(extract{9});
+                            theta_init = apot.theta_eq;
+                            if length(extract) >= 10; theta_init = str2double(extract{10}); end
+                            origami_templates(extract{1}) = origami_templates(extract{1}).add_angle(bi1,loc11,loc12,bi2,loc21,loc22,apot,theta_init);
+                        
+                        %%% error
                         otherwise
                             error("Unknown origami parameter: " + extract{2})
                     end
-                elseif isKey(linker_types,extract{1})
+
+                %%% add feature to linker
+                elseif numEntries(linker_types) > 0 && isKey(linker_types,extract{1})
                     switch extract{2}
+
+                        %%% add angle
                         case 'angle'
-                            linker_types(extract{1}).angle_pot_index = angle_types(extract{3}).index;
-                            if length(extract) > 3
-                                linker_types(extract{1}).theta_min = str2double(extract{4});
-                            end
-                            if length(extract) > 4
-                                linker_types(extract{1}).theta_max = str2double(extract{5});
-                            end
+                            linker_types(extract{1}).apot_index = apot_types(extract{3}).index;
+                            if length(extract) >= 4; linker_types(extract{1}).theta_min = str2double(extract{4}); end
+                            if length(extract) >= 5; linker_types(extract{1}).theta_max = str2double(extract{5}); end
+
+                        %%% define 5' end
                         case '5p'
-                            origami_templates(extract{3}) = origami_templates(extract{3}).add_linker(string(extract{1}),1,extract{4},extract{5});
+                            li = linker_types(extract{1}).index;
+                            bi = extract{4};
+                            loc = extract{5};
+                            origami_templates(extract{3}) = origami_templates(extract{3}).add_linker(1,li,bi,loc);
+                        
+                        %%% define 3' end
                         case '3p'
-                            origami_templates(extract{3}) = origami_templates(extract{3}).add_linker(string(extract{1}),0,extract{4},extract{5});
+                            li = linker_types(extract{1}).index;
+                            bi = extract{4};
+                            loc = extract{5};
+                            origami_templates(extract{3}) = origami_templates(extract{3}).add_linker(0,li,bi,loc);
+                        
+                        %%% error
                         otherwise
                             error("Unknown linker parameter: " + extract{2})
                     end
+
+                %%% error
                 else
                     error("Unknown system parameter: " + extract{1})
                 end
@@ -297,15 +359,21 @@ function [os,origami_types,linker_types,potential_types,angle_types] = read_inpu
 
     %%% create origamis
     os = origami.empty;
-    for o_name = keys(origami_types)'
-        count = origami_types(o_name).count;
+    for o_name = keys(origami_templates)'
+        count = origami_counts(o_name);
         os(length(os)+1:length(os)+count) = origami_templates(o_name);
     end
+
+    %%% count atom, bond, angle types
+    natomType = 2 + numEntries(linker_types)*2;
+    nbondType = 1 + numEntries(pot_types);
+    nangleType = numEntries(apot_types);
+    nABAtype = [natomType,nbondType,nangleType];
 end
 
 
 %%% write lammps geometry file
-function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,potential_types,dbox)
+function compose_geo(geoFile,geoVisFile,os,nABAtype,dbox)
 
     %%% calculate index mapping
     [get_oi,get_io,get_iu] = map_indices(os);
@@ -315,12 +383,8 @@ function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,potential_
     nconn = sum([os.nconn]);
     nangle = sum([os.nangle]);
 
-    %%% count types
-    natomType = 2 + numEntries(linker_types)*2;
-    nbondType = 1 + numEntries(potential_types);
-
     %%% initialize mass info
-    masses = ones(1,natomType);
+    masses = ones(1,nABAtype(1));
     mass_patch = 0.01;
     masses(2) = mass_patch;
 
@@ -353,23 +417,21 @@ function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,potential_
         for lio = 1:os(oi).nlink5
             io = os(oi).link5s_io(lio);
             iu = get_iu(oi,io);
-            l_name = os(oi).link5s_name(lio);
-            li = linker_types(l_name).index;
-            atomType = 1 + 2*li;
-            atoms(2,iu) = atomType;
+            li = os(oi).link5s_index(lio);
+            type = 1 + 2*li;
+            atoms(2,iu) = type;
             if os(oi).is_patch(io)
-                masses(atomType) = mass_patch;
+                masses(type) = mass_patch;
             end
         end
         for lio = 1:os(oi).nlink3
             io = os(oi).link3s_io(lio);
             iu = get_iu(oi,io);
-            l_name = os(oi).link3s_name(lio);
-            li = linker_types(l_name).index;
-            atomType = 2 + 2*li;
-            atoms(2,iu) = atomType;
+            li = os(oi).link3s_index(lio);
+            type = 2 + 2*li;
+            atoms(2,iu) = type;
             if os(oi).is_patch(io)
-                masses(atomType) = mass_patch;
+                masses(type) = mass_patch;
             end
         end
     end
@@ -381,10 +443,10 @@ function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,potential_
         for oi = 1:length(os)
             for ci = 1:length(os(oi).conns_pot)
                 bond_count = bond_count + 1;
-                bond_type = os(oi).conns_pot(ci).index;
+                type = os(oi).conns_pot(ci).index;
                 iu1 = get_iu( oi, os(oi).get_io( os(oi).conns_bis(1,ci), os(oi).conns_ibs(1,ci) ) );
                 iu2 = get_iu( oi, os(oi).get_io( os(oi).conns_bis(2,ci), os(oi).conns_ibs(2,ci) ) );
-                bonds(1,bond_count) = bond_type;
+                bonds(1,bond_count) = type;
                 bonds(2,bond_count) = iu1;
                 bonds(3,bond_count) = iu2;
             end
@@ -393,19 +455,19 @@ function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,potential_
 
     %%% rigid bonds for angles
     if nangle > 0
-        bond_type = nbondType;
+        type = nABAtype(2);
         for oi = 1:length(os)
-            for ai = 1:length(os(oi).angles_pot)
+            for ai = 1:length(os(oi).angles_apot)
                 iu1 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(1,ai), os(oi).angles_ibs(1,ai) ) );
                 iu2 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(2,ai), os(oi).angles_ibs(2,ai) ) );
                 bond_count = bond_count + 1;
-                bonds(1,bond_count) = bond_type;
+                bonds(1,bond_count) = type;
                 bonds(2,bond_count) = iu1;
                 bonds(3,bond_count) = iu2;
                 iu3 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(3,ai), os(oi).angles_ibs(3,ai) ) );
                 iu4 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(4,ai), os(oi).angles_ibs(4,ai) ) );
                 bond_count = bond_count + 1;
-                bonds(1,bond_count) = bond_type;
+                bonds(1,bond_count) = type;
                 bonds(2,bond_count) = iu3;
                 bonds(3,bond_count) = iu4;
             end
@@ -414,23 +476,22 @@ function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,potential_
 
     %%% compile angle info
     angles = zeros(4,nangle);
-    nangleType = 0;
     if nangle > 0
         angle_count = 0;
         for oi = 1:length(os)
-            for ai = 1:length(os(oi).angles_pot)
-                angle_count = angle_count + 2;
-                angle_type = os(oi).angles_pot(ai).index;
-                nangleType = max([nangleType,angle_type]);
+            for ai = 1:length(os(oi).angles_apot)
+                type = os(oi).angles_apot(ai).index;
                 iu1 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(1,ai), os(oi).angles_ibs(1,ai) ) );
                 iu2 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(2,ai), os(oi).angles_ibs(2,ai) ) );
                 iu3 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(3,ai), os(oi).angles_ibs(3,ai) ) );
                 iu4 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(4,ai), os(oi).angles_ibs(4,ai) ) );
-                angles(1,angle_count-1) = angle_type;
-                angles(2,angle_count-1) = iu1;
-                angles(3,angle_count-1) = iu2;
-                angles(4,angle_count-1) = iu3;
-                angles(1,angle_count) = angle_type;
+                angle_count = angle_count + 1;
+                angles(1,angle_count) = type;
+                angles(2,angle_count) = iu1;
+                angles(3,angle_count) = iu2;
+                angles(4,angle_count) = iu3;
+                angle_count = angle_count + 1;
+                angles(1,angle_count) = type;
                 angles(2,angle_count) = iu2;
                 angles(3,angle_count) = iu3;
                 angles(4,angle_count) = iu4;
@@ -438,20 +499,12 @@ function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,potential_
         end
     end
 
-    %%% count angle types
-    if numEntries(linker_types) > 0
-        for l_name = keys(linker_types)'
-            angle_type = linker_types(l_name).angle_pot_index;
-            nangleType = max([nangleType,angle_type]);
-        end
-    end
-
     %%% write simulation geometry file
-    ars.writeGeo(geoFile,dbox,atoms,bonds,angles,masses=masses,nbondType=nbondType,nangleType=nangleType)
+    ars.writeGeo(geoFile,dbox,atoms,bonds,angles,masses=masses,nbondType=nABAtype(2),nangleType=nABAtype(3));
 
     %%% compile atom info for visualization
     atoms_vis = atoms;
-    norigami_type = numEntries(origami_types);
+    norigami_type = length(unique([os.index]));
     for iu = 1:natom
         oi = get_oi(iu);
         io = get_io(iu);
@@ -459,21 +512,20 @@ function compose_geo(geoFile,geoVisFile,os,origami_types,linker_types,potential_
         if os(oi).is_patch(io)
             atoms_vis(2,iu) = norigami_type + 1;
         else
-            o_name = os(oi).name;
-            atoms_vis(2,iu) = origami_types(o_name).index;
+            atoms_vis(2,iu) = os(oi).index;
         end
     end
     for oi = 1:length(os)
         for lio = 1:os(oi).nlink5
             io = os(oi).link5s_io(lio);
             iu = get_iu(oi,io);
-            li = linker_types(os(oi).link5s_name(lio)).index;
+            li = os(oi).link5s_index(lio);
             atoms_vis(2,iu) = norigami_type + 1 + li;
         end
         for lio = 1:os(oi).nlink3
             io = os(oi).link3s_io(lio);
             iu = get_iu(oi,io);
-            li = linker_types(os(oi).link3s_name(lio)).index;
+            li = os(oi).link3s_index(lio);
             atoms_vis(2,iu) = norigami_type + 1 + li;
         end
     end
@@ -611,13 +663,13 @@ function write_input(inputFile,p,linker_types,potential_types,angle_types)
         fprintf(f,"## Reactions\n");
         for l_name = keys(linker_types)'
             li = linker_types(l_name).index;
-            fixName = strcat("linker",num2str(li));
+            fix_name = strcat("linker",num2str(li));
             r12_cut = linker_types(l_name).r12_cut;
-            bond_type = potential_types(linker_types(l_name).pot).index;
-            angle_type = linker_types(l_name).angle_pot_index;
+            bond_type = linker_types(l_name).pot_index;
+            angle_type = linker_types(l_name).apot_index;
             theta_min = linker_types(l_name).theta_min;
             theta_max = linker_types(l_name).theta_max;
-            write_bond_create(f,fixName,"linker",p.react_every,1+li*2,2+li*2,r12_cut,bond_type,angle_type,theta_min,theta_max);
+            write_bond_create(f,fix_name,"linker",p.react_every,1+li*2,2+li*2,r12_cut,bond_type,angle_type,theta_min,theta_max);
         end
         fprintf(f,"\n");
     end
@@ -651,9 +703,9 @@ end
 
 
 %%% write fix bond create command
-function write_bond_create(f,fixName,groupName,react_every,atomType1,atomType2,r12_cut,bond_type,angle_type,theta_min,theta_max)
+function write_bond_create(f,fix_name,group_name,react_every,atomType1,atomType2,r12_cut,bond_type,angle_type,theta_min,theta_max)
     fprintf(f,strcat(...
-        "fix             ", fixName, " ", groupName, " bond/create"));
+        "fix             ", fix_name, " ", group_name, " bond/create"));
     if angle_type ~= 0
         fprintf(f,"/angle");
     end

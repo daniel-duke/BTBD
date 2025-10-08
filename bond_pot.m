@@ -1,5 +1,5 @@
 %%% potential class for BTBD
-classdef potential
+classdef bond_pot
     properties
         style           % bond style
         r12_eq          % equilibrium separation
@@ -9,7 +9,7 @@ classdef potential
 
     methods
         %%% constructor
-        function pot = potential(style,r12_eq,params,index)
+        function pot = bond_pot(style,r12_eq,params,index)
             if nargin > 0
                 pot.style = style;
                 pot.r12_eq = r12_eq;
