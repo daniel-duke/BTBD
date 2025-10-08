@@ -7,11 +7,11 @@ classdef origami
         nconn               % number of connections
         conns_bis           % connection block indices
         conns_ibs           % connection bead indices
-        conns_pot           % name of connection potential
+        conns_pot           % connection potential
         nangle              % number of angles
         angles_bis          % angle block indices
         angles_ibs          % angle bead indices
-        angles_theta_eq     % angle equilibrium theta
+        angles_pot          % angle potential
         angles_theta_init   % angle initial theta
         nlink5              % number of 5p linkers
         link5s_name         % 5p linkers linker name
@@ -39,7 +39,7 @@ classdef origami
             o.nangle = 0;
             o.angles_bis = [];
             o.angles_ibs = [];
-            o.angles_theta_eq = [];
+            o.angles_pot = angle_pot.empty;
             o.angles_theta_init = [];
             o.nlink5 = 0;
             o.link5s_name = strings();
@@ -74,7 +74,7 @@ classdef origami
 
 
         %%% add angle to origami
-        function o = add_angle(o,bi1,loc1,bi2,loc2,bi3,loc3,bi4,loc4,theta_eq,theta_init)
+        function o = add_angle(o,bi1,loc1,bi2,loc2,bi3,loc3,bi4,loc4,apot,theta_init)
             o.nangle = o.nangle + 1;
             o.angles_bis(:,o.nangle) = [bi1;bi2;bi3;bi4];
             ib1 = o.bs(bi1).interpret_loc(loc1);
@@ -82,7 +82,7 @@ classdef origami
             ib3 = o.bs(bi3).interpret_loc(loc3);
             ib4 = o.bs(bi4).interpret_loc(loc4);
             o.angles_ibs(:,o.nangle) = [ib1;ib2;ib3;ib4];
-            o.angles_theta_eq(o.nangle) = theta_eq;
+            o.angles_pot(o.nangle) = apot;
             o.angles_theta_init(o.nangle) = theta_init;
         end
 
@@ -140,12 +140,12 @@ classdef origami
 
 
         %%% ensure connections are not too strained
-        function failed = are_conns_overstretched(o,U_overstretched)
+        function failed = are_conns_overstretched(o,p)
             for ci = 1:o.nconn
-                r12_overstretched = o.conns_pot(ci).calc_separation(U_overstretched);
                 r1 = o.bs(o.conns_bis(1,ci)).r(:,o.conns_ibs(1,ci));
                 r2 = o.bs(o.conns_bis(2,ci)).r(:,o.conns_ibs(2,ci));
-                if norm(r1-r2) > r12_overstretched
+                U = o.conns_pot(ci).calc_energy(norm(r1-r2));
+                if U > p.U_overstretched
                     failed = true;
                     return
                 end
@@ -160,7 +160,6 @@ classdef origami
             max_attempts_rot = 1000;
             max_attempts_place = 1000;
             tolerance_rot = 0.001;
-            U_overstretched = 10;
 
             %%% scale internal positions of structural beads to real units
             for bi = 1:length(o.bs)
@@ -350,7 +349,7 @@ classdef origami
                 end
 
                 %%% reset if connection overstretch
-                if are_conns_overstretched(o,U_overstretched)
+                if are_conns_overstretched(o,p)
                     attempts_conf = attempts_conf + 1;
                     continue
                 end
@@ -515,5 +514,6 @@ classdef origami
             Rspin = eye(3) + sind(phi)*U + (1-cosd(phi))*(U*U);
             R = Rspin * R0;
         end
+
     end
 end

@@ -1,54 +1,56 @@
 %%% potentials
-potential dsC   harmonic 5 1
-potential dumL  harmonic 2 0
-potential dsL   harmonic 2 1
+potential dum   zero 0
+potential dsC   harmonic 12 10
+potential dsL   harmonic 5 10
+angle_pot ds    180 2
+angle_pot L     180 40
 
 %%% blocks
-block Ba        1HB 11
-block Bi        1HB 11
+block Ba        1HB 5
+block Bi        1HB 5
 
 %%% active block
-patch CRUB      Ba  5  5  0
-patch CRLB      Ba  5 -5  0
-patch CRUF      Ba  5  5 -5
-patch CRLF      Ba  5 -5 -5
-patch CLUB      Ba -5  5  0
-patch CLLB      Ba -5 -5  0
-patch CLUF      Ba -5  5 -5
-patch CLLF      Ba -5 -5 -5
-patch CRUmB     Ba  5  1.67  0
-patch CRLmB     Ba  5 -1.67  0
-patch CRUmF     Ba  5  1.67 -5
-patch CRLmF     Ba  5 -1.67 -5
-patch CLUmB     Ba -5  1.67  0
-patch CLLmB     Ba -5 -1.67  0
-patch CLUmF     Ba -5  1.67 -5
-patch CLLmF     Ba -5 -1.67 -5
-patch L1        Ba  0  2.5 56
-patch L2        Ba  0 -2.5 56
-patch L3        Ba  0  2.5 54
-patch L4        Ba  0 -2.5 54
+patch CRUB      Ba  3.6  3.6 12
+patch CRLB      Ba  3.6 -3.6 12
+patch CRUF      Ba  3.6  3.6 0
+patch CRLF      Ba  3.6 -3.6 0
+patch CLUB      Ba -3.6  3.6 12
+patch CLLB      Ba -3.6 -3.6 12
+patch CLUF      Ba -3.6  3.6 0
+patch CLLF      Ba -3.6 -3.6 0
+patch CRUmB     Ba  3.6  1.2 12
+patch CRLmB     Ba  3.6 -1.2 12
+patch CRUmF     Ba  3.6  1.2 0
+patch CRLmF     Ba  3.6 -1.2 0
+patch CLUmB     Ba -3.6  1.2 12
+patch CLLmB     Ba -3.6 -1.2 12
+patch CLUmF     Ba -3.6  1.2 0
+patch CLLmF     Ba -3.6 -1.2 0
+patch L1        Ba  0  3.6 25
+patch L2        Ba  0  3.6 20
+patch L3        Ba  0 -3.6 25
+patch L4        Ba  0 -3.6 20
 
 %%% inert block
-patch CRUB      Bi  5  5  0
-patch CRLB      Bi  5 -5  0
-patch CRUF      Bi  5  5 -5
-patch CRLF      Bi  5 -5 -5
-patch CLUB      Bi -5  5  0
-patch CLLB      Bi -5 -5  0
-patch CLUF      Bi -5  5 -5
-patch CLLF      Bi -5 -5 -5
-patch CRUmB     Bi  5  1.67  0
-patch CRLmB     Bi  5 -1.67  0
-patch CRUmF     Bi  5  1.67 -5
-patch CRLmF     Bi  5 -1.67 -5
-patch CLUmB     Bi -5  1.67  0
-patch CLLmB     Bi -5 -1.67  0
-patch CLUmF     Bi -5  1.67 -5
-patch CLLmF     Bi -5 -1.67 -5
+patch CRUB      Bi  3.6  3.6 14
+patch CRLB      Bi  3.6 -3.6 14
+patch CRUF      Bi  3.6  3.6 0
+patch CRLF      Bi  3.6 -3.6 0
+patch CLUB      Bi -3.6  3.6 14
+patch CLLB      Bi -3.6 -3.6 14
+patch CLUF      Bi -3.6  3.6 0
+patch CLLF      Bi -3.6 -3.6 0
+patch CRUmB     Bi  3.6  1.2 14
+patch CRLmB     Bi  3.6 -1.2 14
+patch CRUmF     Bi  3.6  1.2 0
+patch CRLmF     Bi  3.6 -1.2 0
+patch CLUmB     Bi -3.6  1.2 14
+patch CLLmB     Bi -3.6 -1.2 14
+patch CLUmF     Bi -3.6  1.2 0
+patch CLLmF     Bi -3.6 -1.2 0
 
 %%% origami
-origami O1      1
+origami O1      6
 O1 blocks       Ba Ba Bi
 O1 rigid        block
 O1 conn         1 P-CRUF 2 P-CLUF dsC
@@ -63,27 +65,29 @@ O1 conn         2 P-CRUmF 3 P-CLUmF dsC
 O1 conn         2 P-CRLmF 3 P-CLLmF dsC
 O1 conn         3 P-CRUmF 1 P-CLUmF dsC
 O1 conn         3 P-CRLmF 1 P-CLLmF dsC
-O1 conn         1 P-L1 1 P-L3 dumL
-O1 conn         1 P-L2 1 P-L4 dumL
-O1 conn         2 P-L1 2 P-L3 dumL
-O1 conn         2 P-L2 2 P-L4 dumL
-O1 angle        1 P-CRUB 1 P-CRUF 2 P-CLUF 2 P-CLUB 180 150
-O1 angle        2 P-CRUB 2 P-CRUF 3 P-CLUF 3 P-CLUB 180 150
-O1 angle        3 P-CRUB 3 P-CRUF 1 P-CLUF 1 P-CLUB 180 150
-O1 angle        1 P-CRLB 1 P-CRLF 2 P-CLLF 2 P-CLLB 180 150
-O1 angle        2 P-CRLB 2 P-CRLF 3 P-CLLF 3 P-CLLB 180 150
-O1 angle        3 P-CRLB 3 P-CRLF 1 P-CLLF 1 P-CLLB 180 150
-O1 angle        1 P-CRUmB 1 P-CRUmF 2 P-CLUmF 2 P-CLUmB 180 150
-O1 angle        2 P-CRUmB 2 P-CRUmF 3 P-CLUmF 3 P-CLUmB 180 150
-O1 angle        3 P-CRUmB 3 P-CRUmF 1 P-CLUmF 1 P-CLUmB 180 150
-O1 angle        1 P-CRLmB 1 P-CRLmF 2 P-CLLmF 2 P-CLLmB 180 150
-O1 angle        2 P-CRLmB 2 P-CRLmF 3 P-CLLmF 3 P-CLLmB 180 150
-O1 angle        3 P-CRLmB 3 P-CRLmF 1 P-CLLmF 1 P-CLLmB 180 150
+O1 conn         1 P-L1 1 P-L2 dum
+O1 conn         1 P-L3 1 P-L4 dum
+O1 conn         2 P-L1 2 P-L2 dum
+O1 conn         2 P-L3 2 P-L4 dum
+O1 angle        1 P-CRUB 1 P-CRUF 2 P-CLUF 2 P-CLUB ds 150
+O1 angle        2 P-CRUB 2 P-CRUF 3 P-CLUF 3 P-CLUB ds 150
+O1 angle        3 P-CRUB 3 P-CRUF 1 P-CLUF 1 P-CLUB ds 150
+O1 angle        1 P-CRLB 1 P-CRLF 2 P-CLLF 2 P-CLLB ds 150
+O1 angle        2 P-CRLB 2 P-CRLF 3 P-CLLF 3 P-CLLB ds 150
+O1 angle        3 P-CRLB 3 P-CRLF 1 P-CLLF 1 P-CLLB ds 150
+O1 angle        1 P-CRUmB 1 P-CRUmF 2 P-CLUmF 2 P-CLUmB ds 150
+O1 angle        2 P-CRUmB 2 P-CRUmF 3 P-CLUmF 3 P-CLUmB ds 150
+O1 angle        3 P-CRUmB 3 P-CRUmF 1 P-CLUmF 1 P-CLUmB ds 150
+O1 angle        1 P-CRLmB 1 P-CRLmF 2 P-CLLmF 2 P-CLLmB ds 150
+O1 angle        2 P-CRLmB 2 P-CRLmF 3 P-CLLmF 3 P-CLLmB ds 150
+O1 angle        3 P-CRLmB 3 P-CRLmF 1 P-CLLmF 1 P-CLLmB ds 150
 
 %%% linkers
-linker L1       dsL 3.0
+linker L1       dsL 3
+L1 angle        L 120 180
 L1 5p           O1 1 P-L1
 L1 3p           O1 2 P-L1
-linker L2       dsL 3.0
-L2 5p           O1 1 P-L2
-L2 3p           O1 2 P-L2
+linker L2       dsL 3
+L2 angle        L 120 180
+L2 5p           O1 1 P-L3
+L2 3p           O1 2 P-L3
