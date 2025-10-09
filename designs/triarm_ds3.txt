@@ -1,6 +1,6 @@
 %%% potentials
 bond_pot dummy  zero 0
-bond_pot Cds    harmonic 15 10
+bond_pot Cds    harmonic 20 10
 bond_pot Lse    harmonic 5 10
 angle_pot Cds   180 2
 angle_pot Lse   180 40
@@ -51,7 +51,7 @@ patch CLLmF     Bi -3.6 -1.2 0
 
 %%% origami
 origami O1      10
-O1 rseed        5
+O1 rseed        0
 O1 rigid        block
 O1 blocks       Ba Ba Bi
 O1 conn         1 CRUF 2 CLUF Cds
@@ -70,18 +70,18 @@ O1 conn         1 LUF 1 LUB dummy
 O1 conn         1 LLF 1 LLB dummy
 O1 conn         2 LUF 2 LUB dummy
 O1 conn         2 LLF 2 LLB dummy
-O1 angle        1 CRUB CRUF 2 CLUF CLUB Cds 150
-O1 angle        2 CRUB CRUF 3 CLUF CLUB Cds 150
-O1 angle        3 CRUB CRUF 1 CLUF CLUB Cds 150
-O1 angle        1 CRLB CRLF 2 CLLF CLLB Cds 150
-O1 angle        2 CRLB CRLF 3 CLLF CLLB Cds 150
-O1 angle        3 CRLB CRLF 1 CLLF CLLB Cds 150
-O1 angle        1 CRUmB CRUmF 2 CLUmF CLUmB Cds 150
-O1 angle        2 CRUmB CRUmF 3 CLUmF CLUmB Cds 150
-O1 angle        3 CRUmB CRUmF 1 CLUmF CLUmB Cds 150
-O1 angle        1 CRLmB CRLmF 2 CLLmF CLLmB Cds 150
-O1 angle        2 CRLmB CRLmF 3 CLLmF CLLmB Cds 150
-O1 angle        3 CRLmB CRLmF 1 CLLmF CLLmB Cds 150
+O1 angle        1 CRUB CRUF 2 CLUF CLUB Cds 150 0 1 0
+O1 angle        2 CRUB CRUF 3 CLUF CLUB Cds 150 0 1 0
+O1 angle        3 CRUB CRUF 1 CLUF CLUB Cds 150 0 1 0
+O1 angle        1 CRLB CRLF 2 CLLF CLLB Cds 150 0 1 0
+O1 angle        2 CRLB CRLF 3 CLLF CLLB Cds 150 0 1 0
+O1 angle        3 CRLB CRLF 1 CLLF CLLB Cds 150 0 1 0
+O1 angle        1 CRUmB CRUmF 2 CLUmF CLUmB Cds 150 0 1 0
+O1 angle        2 CRUmB CRUmF 3 CLUmF CLUmB Cds 150 0 1 0
+O1 angle        3 CRUmB CRUmF 1 CLUmF CLUmB Cds 150 0 1 0
+O1 angle        1 CRLmB CRLmF 2 CLLmF CLLmB Cds 150 0 1 0
+O1 angle        2 CRLmB CRLmF 3 CLLmF CLLmB Cds 150 0 1 0
+O1 angle        3 CRLmB CRLmF 1 CLLmF CLLmB Cds 150 0 1 0
 
 %%% linkers
 linker L1       Lse 6

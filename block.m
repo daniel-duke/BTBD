@@ -141,7 +141,7 @@ classdef block
 
 
         %%% initialize block with bead indexed by ib_conn connected by r12_conn to r_source 
-        function [b,failed,r_other] = init_positions(b,p,r_source,r12_uv_conn,r12_eq_conn,ib_conn,R,r_other)
+        function [b,failed,r_other] = init_positions(b,p,r_source,r12_uv_conn,r12_eq_conn,ib_conn,R,conns_pot,conns_r1,conns_ib2,r_other)
             max_attempts = 100;
 
             %%% determine if connection direction should be random
@@ -201,6 +201,16 @@ classdef block
                 for pi = 1:b.npatch
                     ib = b.n-b.npatch+pi;
                     b.r(:,ib) = com + R*b.r_internal(:,ib);
+                end
+
+                %%% check connections
+                nconn = length(conns_pot);
+                for ci = 1:nconn
+                    r2 = b.r(:,conns_ib2);
+                    U = conns_pot(ci).calc_energy(norm(r2-conns_r1));
+                    if U > p.U_overstretched
+                        attempts = attempts + 1;
+                    end
                 end
 
                 %%% block successfully initiated

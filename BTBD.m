@@ -5,6 +5,9 @@ rng(42)
 %%% To Do
 % add loop to check connections after each loop.
 % add keyword/value loops for any optional arguments.
+% add off option for angles.
+% start first block with axes aligned with box axes.
+% add option to define initialization direction for angle.
 % use fix bond react.
 % update script description.
 
@@ -312,8 +315,10 @@ function [os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
                             loc22 = extract{8};
                             apot = apot_types(extract{9});
                             theta_init = apot.theta_eq;
+                            axis_init = [0;0;0];
                             if length(extract) >= 10; theta_init = str2double(extract{10}); end
-                            origami_templates(extract{1}) = origami_templates(extract{1}).add_angle(bi1,loc11,loc12,bi2,loc21,loc22,apot,theta_init);
+                            if length(extract) >= 11; axis_init = [str2double(extract{11});str2double(extract{12});str2double(extract{13})]; end
+                            origami_templates(extract{1}) = origami_templates(extract{1}).add_angle(bi1,loc11,loc12,bi2,loc21,loc22,apot,theta_init,axis_init);
                         
                         %%% error
                         otherwise

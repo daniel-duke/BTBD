@@ -1,4 +1,4 @@
-%%% potential class for BTBD
+%%% angle potential class for BTBD
 classdef angle_pot
     properties
         theta_eq        % equilibrium angle

@@ -1,4 +1,4 @@
-%%% potential class for BTBD
+%%% bond potential class for BTBD
 classdef bond_pot
     properties
         style           % bond style
