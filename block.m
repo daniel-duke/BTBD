@@ -3,9 +3,6 @@ classdef block
     properties
         pattern         % helix locations in block xy-plane
         hiH             % helix indices of hollow helices
-        hiL             % helix index for left connections
-        hiR             % helix index for right connections
-        hiM             % helix index for middle connections
         nhelix          % number of helices
         n_helix         % number of beads in each helix
         r_internal      % internal positions (in bead units)
@@ -25,7 +22,7 @@ classdef block
         %%% constructor
         function b = block(pattern_label,n_helix,p)
             if nargin > 0
-                [b.pattern,b.hiH,b.hiL,b.hiR,b.hiM] = block.setpat(pattern_label);
+                [b.pattern,b.hiH] = block.setpat(pattern_label);
                 b.nhelix = size(b.pattern,2);
                 b.n_helix = n_helix;
                 b.R = eye(3);
@@ -98,49 +95,13 @@ classdef block
         end
 
 
-        %%% get block index from location
-        function ib = interpret_loc(b,loc)
-
-            %%% connection to structural bead
-            if length(loc) >= 2 && loc(1:2) == "B-"
-
-                %%% find helix
-                if loc(3) == 'L'
-                    hi = b.hiL;
-                elseif loc(3) == 'M'
-                    hi = b.hiM;
-                elseif loc(3) == 'R'
-                    hi = b.hiR;
-                else
-                    error("Unknown helix type: " + loc(3) + ".")
-                end
-
-                %%% find height
-                if length(loc) >= 4
-                    zi = str2double(loc(4:end));
-                else
-                    zi = 0;
-                end
-
-                %%% get bead index
-                ib = b.get_ib(hi,zi);
-
-            %%% connection to patch bead
+        %%% get block index from patch name
+        function ib = get_patch_ib(b,patch)
+            patch_index = find(strcmp(b.patches, patch));
+            if ~isempty(patch_index)
+                ib = b.n-b.npatch+patch_index;
             else
-
-                %%% find patch
-                if loc(1:2) == "P-"
-                    patch_index = find(strcmp(b.patches, loc(3:end)));
-                else
-                    patch_index = find(strcmp(b.patches, loc));
-                end
-
-                %%% get bead index
-                if ~isempty(patch_index)
-                    ib = b.n-b.npatch+patch_index;
-                else
-                    error("Unknown patch type: " + loc(3:end) + ".")
-                end
+                error("Unknown patch type: " + patch(3:end) + ".")
             end
         end
 
@@ -185,51 +146,36 @@ classdef block
         %%% Static Functions %%%%%%%%%%%%%%%%%%%%%%%%%
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-        %%% get patterns (all lengths are in r12_helix units)
-        function [pattern,hiHollow,hiL,hiR,hiM] = setpat(pattern_label)
+        %%% get patterns
+        function [pattern,hiHollow] = setpat(pattern_label)
 
+            %%% single bundle
             if pattern_label == "1HB"
-                %%% all helices
-                pattern = [0;...
-                           0];
-                %%% helix identification
+                pattern  = [0;...
+                            0];
                 hiHollow = [];
-                hiL = 1;
-                hiR = 1;
-                hiM = 1;
 
+            %%% square 8-helix bundle
             elseif pattern_label == "sq8HB"
-                %%% all helices
-                pattern = [-1  0  1 -1  1 -1  0  1;...
-                           -1 -1 -1  0  0  1  1  1];
-                %%% helix identification
+                pattern  = [-1  0  1 -1  1 -1  0  1;...
+                            -1 -1 -1  0  0  1  1  1];
                 hiHollow = [];
-                hiL = 1;
-                hiR = 3;
-                hiM = 2;
 
+            %%% hexagonal 8-helix bundle
             elseif pattern_label == "hex6HB"
                 q = sqrt(3)/2;
-                %%% all helices
-                pattern = [-1.0 -0.5 0.5 1.0 0.5 -0.5;...
-                           0    -q   -q  0   q   q  ];
-                %%% helix identification
-                hiHollow =  [];
-                hiL = 1;
-                hiR = 3;
-                hiM = 2;
+                pattern  = [-1.0 -0.5 0.5 1.0 0.5 -0.5;...
+                            0    -q   -q  0   q   q  ];
+                hiHollow = [];
 
+            %%% hexagonal 16-helix bundle
             elseif pattern_label == "hex16HB"
                 q = sqrt(3)/2;
-                %%% all helices
-                pattern = [0 2 3 5  0.5 1.5 3.5 4.5  0.0 2.0 3.0 5.0  0.5 1.5 3.5 4.5;...
-                           0 0 0 0  1*q 1*q 1*q 1*q  2*q 2*q 2*q 2*q  3*q 3*q 3*q 3*q];
-                %%% helix identification
+                pattern  = [0 2 3 5  0.5 1.5 3.5 4.5  0.0 2.0 3.0 5.0  0.5 1.5 3.5 4.5;...
+                            0 0 0 0  1*q 1*q 1*q 1*q  2*q 2*q 2*q 2*q  3*q 3*q 3*q 3*q];
                 hiHollow = [6,7,10,11];
-                hiL = 1;
-                hiR = 4;
-                hiM = 2;
 
+            %%% error
             else
                 error("Unknown block pattern.")
             end

@@ -69,11 +69,11 @@ classdef origami
 
 
         %%% add connection to origami
-        function o = add_conn(o,bi1,loc1,bi2,loc2,pot)
+        function o = add_conn(o,bi1,patch1,bi2,patch2,pot)
             o.nconn = o.nconn + 1;
             o.conns_bis(:,o.nconn) = [bi1;bi2];
-            ib1 = o.bs(bi1).interpret_loc(loc1);
-            ib2 = o.bs(bi2).interpret_loc(loc2);
+            ib1 = o.bs(bi1).get_patch_ib(patch1);
+            ib2 = o.bs(bi2).get_patch_ib(patch2);
             o.conns_ibs(:,o.nconn) = [ib1;ib2];
             o.conns_pot(o.nconn) = pot;
             o.conns_status(o.nconn) = 1;
@@ -81,13 +81,13 @@ classdef origami
 
 
         %%% add angle to origami
-        function o = add_angle(o,bi1,loc11,loc12,bi2,loc21,loc22,apot)
+        function o = add_angle(o,bi1,patch11,patch12,bi2,patch21,patch22,apot)
             o.nangle = o.nangle + 1;
             o.angles_bis(:,o.nangle) = [bi1;bi1;bi2;bi2];
-            ib11 = o.bs(bi1).interpret_loc(loc11);
-            ib12 = o.bs(bi1).interpret_loc(loc12);
-            ib21 = o.bs(bi2).interpret_loc(loc21);
-            ib22 = o.bs(bi2).interpret_loc(loc22);
+            ib11 = o.bs(bi1).get_patch_ib(patch11);
+            ib12 = o.bs(bi1).get_patch_ib(patch12);
+            ib21 = o.bs(bi2).get_patch_ib(patch21);
+            ib22 = o.bs(bi2).get_patch_ib(patch22);
             o.angles_ibs(:,o.nangle) = [ib11;ib12;ib21;ib22];
             o.angles_apot(o.nangle) = apot;
             o.angles_theta_init(o.nangle) = apot.theta_eq;
@@ -97,7 +97,7 @@ classdef origami
 
 
         %%% add linker to origami
-        function o = add_linker(o,is_5p,li,bi,loc)
+        function o = add_linker(o,is_5p,li,bi,patch)
             if bi == "A"
                 bi_min = 1;
                 bi_max = length(o.bs);
@@ -109,7 +109,7 @@ classdef origami
                 bi_max = str2double(bi);
             end
             for bi = bi_min:bi_max
-                ib = o.bs(bi).interpret_loc(loc);
+                ib = o.bs(bi).get_patch_ib(patch);
                 io = o.get_io(bi,ib);
                 if is_5p
                     o.nlink5 = o.nlink5 + 1;

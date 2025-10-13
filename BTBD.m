@@ -3,9 +3,8 @@ clc; clear; close all;
 rng(41)
 
 %%% To Do
-% add off option for angles and connections
 % use fix bond react.
-% update script description.
+% update readme.
 
 %%% Notation
 % r - position vector
@@ -17,37 +16,8 @@ rng(41)
 % ib - bead index within block
 % io - bead index within entire origami
 % iu - bead index within the universe
-% connection - permenant (usually ssDNA scaffold) bond
-% linker - switchable (usually hybridizing DNA) bond
-
-%%% Input file
-% blocks: rigid bodies
-  % name - how to identify the block for patches and origamis
-  % pattern - arangement of beads in the xy-plane (see block object)
-  % height - number of beads in the z-direction
-% patches: locations on blocks used for bonded interactions
-  % name - how to identify the patch for connections and linkers
-  % block - name of block on which to place the patch
-  % theta - polar angle in xy-plane (in degrees) of patch location
-  % radius - distance from z-axis (in r12_helix units) of patch location
-  % z - height along z-axis (in r12_bead units) of patch location
-% origami: collection of connected blocks
-  % name - how to identify the origami for defining parameters and adding linkers
-  % block - names of block types (blocks are indexed in the given order)
-  % conn - permanent bond between indexed blocks at given location
-  % count - number of origamis to create
-% linker: breakable bond
-  % origami - name of origamis on which to create the linker
-  % block indices - index, or "A" for all blocks, or "B" for all but the last block
-  % location - where to place the ends of the linker
-% note: locations are defined by a flag (B or P, for bead or patch),
-  % followed by a hyphen, followed by a bead or patch identifier; for
-  % beads, the identifier is the helix (L/M/R for left/middle/right)
-  % directly followed by the height; for patches the identifier is the name
-  % of the patch.
-% note: linkers require two lines, one starting with the keyword "linker"
-  % that defines the location of the 5' end, and another line directly
-  % afterwards that defines the location of the 3' end.
+% connection - permenant (usually scaffold) bond
+% linker - switchable (usually sticky end) bond
 
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -290,11 +260,11 @@ function [p,os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
                         %%% add connection
                         case 'conn'
                             bi1 = str2double(extract{3});
-                            loc1 = extract{4};
+                            patch1 = extract{4};
                             bi2 = str2double(extract{5});
-                            loc2 = extract{6};
+                            patch2 = extract{6};
                             pot = pot_types(extract{7});
-                            origami_templates(extract{1}) = origami_templates(extract{1}).add_conn(bi1,loc1,bi2,loc2,pot);
+                            origami_templates(extract{1}) = origami_templates(extract{1}).add_conn(bi1,patch1,bi2,patch2,pot);
                         
                             %%% keyword value pairs
                             line_index = 8;
@@ -315,13 +285,13 @@ function [p,os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
                         %%% add angle
                         case 'angle'
                             bi1 = str2double(extract{3});
-                            loc11 = extract{4};
-                            loc12 = extract{5};
+                            patch11 = extract{4};
+                            patch12 = extract{5};
                             bi2 = str2double(extract{6});
-                            loc21 = extract{7};
-                            loc22 = extract{8};
+                            patch21 = extract{7};
+                            patch22 = extract{8};
                             apot = apot_types(extract{9});
-                            origami_templates(extract{1}) = origami_templates(extract{1}).add_angle(bi1,loc11,loc12,bi2,loc21,loc22,apot);
+                            origami_templates(extract{1}) = origami_templates(extract{1}).add_angle(bi1,patch11,patch12,bi2,patch21,patch22,apot);
 
                             %%% keyword value pairs
                             line_index = 10;
@@ -360,15 +330,15 @@ function [p,os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
                         case '5p'
                             li = linker_types(extract{1}).index;
                             bi = extract{4};
-                            loc = extract{5};
-                            origami_templates(extract{3}) = origami_templates(extract{3}).add_linker(1,li,bi,loc);
+                            patch = extract{5};
+                            origami_templates(extract{3}) = origami_templates(extract{3}).add_linker(1,li,bi,patch);
                         
                         %%% define 3' end
                         case '3p'
                             li = linker_types(extract{1}).index;
                             bi = extract{4};
-                            loc = extract{5};
-                            origami_templates(extract{3}) = origami_templates(extract{3}).add_linker(0,li,bi,loc);
+                            patch = extract{5};
+                            origami_templates(extract{3}) = origami_templates(extract{3}).add_linker(0,li,bi,patch);
 
                         %%% add angle
                         case 'angle'
