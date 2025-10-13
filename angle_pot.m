@@ -15,6 +15,5 @@ classdef angle_pot
                 apot.index = index;
             end
         end
-
     end
 end

@@ -1,13 +1,9 @@
 %%% Housekeeping
 clc; clear; close all;
-rng(42)
+rng(41)
 
 %%% To Do
-% add loop to check connections after each loop.
-% add keyword/value loops for any optional arguments.
-% add off option for angles.
-% start first block with axes aligned with box axes.
-% add option to define initialization direction for angle.
+% add off option for angles and connections
 % use fix bond react.
 % update script description.
 
@@ -55,47 +51,16 @@ rng(42)
 
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Parameters %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Heart %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% read input
 inFile = "./designs/triarm_ds3.txt";
-[os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile);
+[p,os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile);
 
-%%% output parameters
+%%% set output
 outFold = "/Users/dduke/Files/block_tether/network/experiment/active/";
 nsim = 1;
-
-%%% simulation parameters
-nstep_eq        = 1E4;      % steps         - if and how long to equilibrate/shrink
-shrink_ratio    = 1;        % none          - box compression (final/initial)
-nstep_prod      = 1E7;      % steps         - if and how long to run producton
-dump_every      = 1E4;      % steps         - how often to write to output
-
-%%% computational parameters
-dt              = 0.04;     % ns            - time step
-dbox            = 200;      % nm            - periodic boundary diameter
-verlet_skin     = 4;        % nm            - width of neighbor list skin
-neigh_every     = 1E1;      % steps         - how often to consider updating neighbor list
-react_every     = 1E1;      % steps         - how often to check for linker hybridization
-
-%%% physical parameters
-T               = 300;      % K             - temperature
-sigma           = 10;       % nm            - WCA distance parameter
-epsilon         = 1;        % kcal/mol      - WCA energy parameter
-r12_bead        = 5;        % nm            - helix separation
-r12_helix       = 5;        % nm            - bead separation
-U_overstretched = 1;        % kcal/mol      - max energy for initialized bonds
-
-%%% create parameters class
-p = parameters(nstep_eq,shrink_ratio,nstep_prod,dump_every,...
-               dt,dbox,verlet_skin,neigh_every,react_every,...
-               T,sigma,epsilon,r12_bead,r12_helix,U_overstretched);
-
-
-%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Write LAMMPS Files %%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% create output folder 
 mkdir(outFold)
@@ -115,7 +80,7 @@ for i = 1:nsim
     %%% write lammps simulation geometry file
     geoFile = simFold + "geometry.in";
     geoVisFile = simFold + "geometry_vis.in";
-    compose_geo(geoFile,geoVisFile,os,nABAtype,dbox);
+    compose_geo(geoFile,geoVisFile,p.dbox,nABAtype,os);
     
     %%% write lammps input file
     inputFile = simFold + "lammps.in";
@@ -124,80 +89,72 @@ end
 
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Simulation Functions %%%%%%%%%%%%%%%%%%%%%
+%%% File Readers %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%% initilize positions of the entire system
-function os = init_positions(os,p)
-    max_attempts = 10;
+%%% read parameters from input file
+function p = read_parameters(inFile)
 
-    %%% initialize avoided positions
-    r_other = [];
-    r_other_initial = r_other;
+    %%% define parameters with their default values
+    p_input = struct( ...
+        'nstep',        NaN, ...        % steps         - if and how long to run producton
+        'nstep_relax',  1e5, ...        % steps         - if and how long to equilibrate/shrink
+        'dump_every',   1e4, ...        % steps         - how often to write to output
+        'dbox',         NaN, ...        % nm            - periodic boundary diameter
+        'shrink_ratio', 1,   ...        % none          - box compression (final/initial)
+        'dt',           NaN, ...        % ns            - time step
+        'verlet_skin',  4,   ...        % nm            - width of neighbor list skin
+        'neigh_every',  1e1, ...        % steps         - how often to consider updating neighbor list
+        'react_every',  1e1, ...        % steps         - how often to check for linker hybridization
+        'T',            300, ...        % K             - temperature
+        'sigma',        NaN, ...        % nm            - WCA distance parameter
+        'epsilon',      NaN, ...        % kcal/mol      - WCA energy parameter
+        'r12_bead',     NaN, ...        % nm            - helix separation
+        'r12_helix',    NaN, ...        % nm            - bead separation
+        'U_strained',   10   ...        % kcal/mol      - max energy for initialized bonds and angles
+    );
 
-    %%% system attempt loop
-    attempts = 0;
-    while true
+    %%% open file
+    f = fopen(inFile, 'r');
+    if f == -1
+        error("Could not open file.");
+    end
 
-        %%% check attempts
-        if attempts == max_attempts
-            error("Could not place origamis.")
-        end
+    %%% loop over lines
+    while ~feof(f)
+        line = strtrim(fgetl(f));
 
-        %%% loop over origamis
-        for oi = 1:length(os)
-
-            %%% add origami
-            disp(strcat("Initializing origami ",num2str(oi),"..."))
-            [os(oi),failed,r_other] = os(oi).init_positions(p,r_other);
-
-            %%% reset if failed
-            if failed == true
-                attempts = attempts + 1;
-                r_other = r_other_initial;
-                break
-            end
-        end
-
-        %%% reset if failed
-        if failed == true
+        %%% clean up line
+        extract = split(extractBefore([line,'%'],'%'));
+        extract = extract(~cellfun('isempty',extract));
+        if length(extract) ~= 2
             continue
         end
-
-        %%% system successfully initiated
-        break
-    end
-
-    %%% report the wonderful news
-    fprintf("Initialization complete.\n")
-end
-
-
-%%% map between universal index and origami indices
-function [get_oi,get_io,get_iu] = map_indices(os)
-    max_io = max([os.n]);
-    n_uni = sum([os.n]);
-    get_oi = zeros(1,n_uni);
-    get_io = zeros(1,n_uni);
-    get_iu = zeros(length(os),max_io);
-    iu = 0;
-    for oi = 1:length(os)
-        for io = 1:os(oi).n
-            iu = iu+1;
-            get_oi(iu) = oi;
-            get_io(iu) = io;
-            get_iu(oi,io) = iu;
+   
+        %%% set parameter
+        if ismember(extract{1}, fieldnames(p_input))
+            p_input.(extract{1}) = str2double(extract{2});
         end
     end
+    fclose(f);
+
+    %%% check for missing parameters
+    missing = cellfun(@(x) isnumeric(x) && any(isnan(x)), struct2cell(p_input));
+    if any(missing)
+        fields = fieldnames(p_input);
+        error('Missing required parameters: %s', strjoin(fields(missing), ', '));
+    end
+
+    %%% parameters
+    p = parameters(p_input);
 end
 
 
-%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% File Handlers %%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 %%% read input file and create corresponding origami objects
-function [os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
+function [p,os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
+
+    %%% read parameters
+    p = read_parameters(inFile);
 
     %%% open file
     f = fopen(inFile, 'r');
@@ -213,9 +170,12 @@ function [os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
     origami_counts = dictionary();
     linker_types = dictionary();
 
+    %%% interpret on and off
+    status = dictionary("on",1,"off",0);
+
     %%% loop over lines
     while ~feof(f)
-        line = fgetl(f);
+        line = strtrim(fgetl(f));
 
         %%% discard empty lines and whole-line comments
         if isempty(line) || startsWith(line, '%')
@@ -249,9 +209,13 @@ function [os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
 
             %%% define block
             case 'block'
-                pattern_label = convertCharsToStrings(extract{3});
-                n_helix = str2double(extract{4});
-                block_templates(extract{2}) = block(pattern_label,n_helix);
+                if strcmp(extract{3},'copy')
+                    block_templates(extract{2}) = block_templates(extract{4});
+                else
+                    pattern_label = convertCharsToStrings(extract{3});
+                    n_helix = str2double(extract{4});
+                    block_templates(extract{2}) = block(pattern_label,n_helix,p);
+                end
 
             %%% add patch to block
             case 'patch'
@@ -261,15 +225,50 @@ function [os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
                 z = str2double(extract{6});
                 block_templates(extract{3}) = block_templates(extract{3}).add_patch(name,x,y,z);
 
+                %%% keyword value pairs
+                line_index = 7;
+                while true
+                    if length(extract) < line_index
+                        break
+                    else
+                        switch extract{line_index}
+                            case 'status'
+                                block_templates(extract{3}).status(end) = status(extract{line_index+1});
+                                line_index = line_index + 2;
+                            otherwise
+                                error("Unknown patch keyword: " + extract{line_index})
+                        end
+                    end
+                end
+
             %%% initialize origami
             case 'origami'
                 index = 1 + numEntries(origami_templates);
                 origami_templates(extract{2}) = origami(index);
                 origami_counts(extract{2}) = str2double(extract{3});
 
+                %%% keyword value pairs
+                line_index = 4;
+                while true
+                    if length(extract) < line_index
+                        break
+                    else
+                        switch extract{line_index}
+                            case 'copy'
+                                origami_templates(extract{2}) = origami_templates(extract{line_index+1});
+                                line_index = line_index + 2;
+                            case 'rigid'
+                                origami_templates(extract{2}).rigid = string(extract{line_index+1});
+                                line_index = line_index + 2;
+                            otherwise
+                                error("Unknown origami keyword: " + extract{line_index})
+                        end
+                    end
+                end
+
             %%% initialize linker
             case 'linker'
-                pot_index = string(extract{3});
+                pot_index = pot_types(extract{3}).index;
                 r12_cut = str2double(extract{4});
                 index = 1 + numEntries(linker_types);
                 linker_types(extract{2}) = linker(pot_index,r12_cut,index);
@@ -280,14 +279,6 @@ function [os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
                 %%% add feature to origami
                 if numEntries(origami_templates) > 0 && isKey(origami_templates,extract{1})
                     switch extract{2}
-
-                         %%% set rigidity
-                        case 'rigid'
-                            origami_templates(extract{1}).rigid = string(extract{3});
-
-                         %%% set random seed for initialization
-                        case 'rseed'
-                            origami_templates(extract{1}).rseed = str2double(extract{3});
 
                         %%% add blocks
                         case 'blocks'
@@ -305,6 +296,22 @@ function [os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
                             pot = pot_types(extract{7});
                             origami_templates(extract{1}) = origami_templates(extract{1}).add_conn(bi1,loc1,bi2,loc2,pot);
                         
+                            %%% keyword value pairs
+                            line_index = 8;
+                            while true
+                                if length(extract) < line_index
+                                    break
+                                else
+                                    switch extract{line_index}
+                                        case 'status'
+                                            origami_templates(extract{1}).conns_status(end) = status(extract{line_index+1});
+                                            line_index = line_index + 2;
+                                        otherwise
+                                            error("Unknown origami connection keyword: " + extract{line_index})
+                                    end
+                                end
+                            end
+
                         %%% add angle
                         case 'angle'
                             bi1 = str2double(extract{3});
@@ -314,12 +321,32 @@ function [os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
                             loc21 = extract{7};
                             loc22 = extract{8};
                             apot = apot_types(extract{9});
-                            theta_init = apot.theta_eq;
-                            axis_init = [0;0;0];
-                            if length(extract) >= 10; theta_init = str2double(extract{10}); end
-                            if length(extract) >= 11; axis_init = [str2double(extract{11});str2double(extract{12});str2double(extract{13})]; end
-                            origami_templates(extract{1}) = origami_templates(extract{1}).add_angle(bi1,loc11,loc12,bi2,loc21,loc22,apot,theta_init,axis_init);
-                        
+                            origami_templates(extract{1}) = origami_templates(extract{1}).add_angle(bi1,loc11,loc12,bi2,loc21,loc22,apot);
+
+                            %%% keyword value pairs
+                            line_index = 10;
+                            while true
+                                if length(extract) < line_index
+                                    break
+                                else
+                                    switch extract{line_index}
+                                        case 'theta_init'
+                                            theta_init = str2double(extract{line_index+1});
+                                            origami_templates(extract{1}).angles_theta_init(end) = theta_init;
+                                            line_index = line_index + 2;
+                                        case 'axis_init'
+                                            axis_init = [str2double(extract{line_index+1});str2double(extract{line_index+2});str2double(extract{line_index+3})];
+                                            origami_templates(extract{1}).angles_axis_init(:,end) = axis_init;
+                                            line_index = line_index + 4;
+                                        case 'status'
+                                            origami_templates(extract{1}).angles_status(end) = status(extract{line_index+1});
+                                            line_index = line_index + 2;
+                                        otherwise
+                                            error("Unknown origami angle keyword: " + extract{line_index})
+                                    end
+                                end
+                            end
+
                         %%% error
                         otherwise
                             error("Unknown origami parameter: " + extract{2})
@@ -328,12 +355,6 @@ function [os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
                 %%% add feature to linker
                 elseif numEntries(linker_types) > 0 && isKey(linker_types,extract{1})
                     switch extract{2}
-
-                        %%% add angle
-                        case 'angle'
-                            linker_types(extract{1}).apot_index = apot_types(extract{3}).index;
-                            if length(extract) >= 4; linker_types(extract{1}).theta_min = str2double(extract{4}); end
-                            if length(extract) >= 5; linker_types(extract{1}).theta_max = str2double(extract{5}); end
 
                         %%% define 5' end
                         case '5p'
@@ -348,6 +369,29 @@ function [os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
                             bi = extract{4};
                             loc = extract{5};
                             origami_templates(extract{3}) = origami_templates(extract{3}).add_linker(0,li,bi,loc);
+
+                        %%% add angle
+                        case 'angle'
+                            linker_types(extract{1}).apot_index = apot_types(extract{3}).index;
+
+                            %%% keyword value pairs
+                            line_index = 4;
+                            while true
+                                if length(extract) < line_index
+                                    break
+                                else
+                                    switch extract{line_index}
+                                        case 'theta_min'
+                                            linker_types(extract{1}).theta_min = str2double(extract{line_index+1});
+                                            line_index = line_index + 2;
+                                        case 'theta_max'
+                                            linker_types(extract{1}).theta_max = str2double(extract{line_index+1});
+                                            line_index = line_index + 2;
+                                        otherwise
+                                            error("Unknown linker keyword: " + extract{line_index})
+                                    end
+                                end
+                            end
                         
                         %%% error
                         otherwise
@@ -355,7 +399,7 @@ function [os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
                     end
 
                 %%% error
-                else
+                elseif ~ismember(extract{1},fieldnames(p))
                     error("Unknown system parameter: " + extract{1})
                 end
         end
@@ -377,80 +421,114 @@ function [os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
 end
 
 
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% File Writers %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 %%% write lammps geometry file
-function compose_geo(geoFile,geoVisFile,os,nABAtype,dbox)
-
-    %%% calculate index mapping
-    [get_oi,get_io,get_iu] = map_indices(os);
-
-    %%% get counts
-    natom = sum([os.n]);
-    nconn = sum([os.nconn]);
-    nangle = sum([os.nangle]);
+function compose_geo(geoFile,geoVisFile,dbox,nABAtype,os)
 
     %%% initialize mass info
     masses = ones(1,nABAtype(1));
     mass_patch = 0.01;
     masses(2) = mass_patch;
 
+    %%% count origami types
+    norigami_type = length(unique([os.index]));
+
+    %%% initialize universal index map
+    get_iu = zeros(length(os),max([os.n]));
+
     %%% compile atom info
-    atoms = zeros(5,natom);
+    atoms = zeros(5,0);
+    atoms_vis = zeros(5,0);
+    atom_count = 0;
     rigid_count = 0;
-    for iu = 1:natom
-        oi = get_oi(iu);
-        io = get_io(iu);
-        if os(oi).rigid == "origami"
-            if io == 1 
-                rigid_count = rigid_count + 1;
-            end
-        elseif os(oi).rigid == "block"
-            if os(oi).get_ib(io) == 1
-                rigid_count = rigid_count + 1;
-            end
-        else
-            error("Unknown rigid type")
-        end
-        atoms(1,iu) = rigid_count;
-        if os(oi).is_patch(io)
-            atoms(2,iu) = 2;
-        else
-            atoms(2,iu) = 1;
-        end
-        atoms(3:5,iu) = os(oi).r(:,io);
-    end
     for oi = 1:length(os)
+        for io = 1:os(oi).n
+
+            %%% determine bead status
+            bi = os(oi).get_bi(io);
+            ib = os(oi).get_ib(io);
+            if os(oi).bs(bi).status(ib) == 1
+                atom_count = atom_count + 1;
+                get_iu(oi,io) = atom_count;
+
+                %%% increment rigid body count if new body
+                if os(oi).rigid == "origami"
+                    if io == 1 
+                        rigid_count = rigid_count + 1;
+                    end
+                elseif os(oi).rigid == "block"
+                    if os(oi).get_ib(io) == 1
+                        rigid_count = rigid_count + 1;
+                    end
+                else
+                    error("Unknown rigid type")
+                end
+
+                %%% atom info
+                atoms(1,atom_count) = rigid_count;
+                if os(oi).is_patch(io)
+                    atoms(2,atom_count) = 2;
+                else
+                    atoms(2,atom_count) = 1;
+                end
+                atoms(3:5,atom_count) = os(oi).r(:,io);
+
+                %%% visualization info
+                atoms_vis(1,atom_count) = oi;
+                if os(oi).is_patch(io)
+                    atoms_vis(2,atom_count) = norigami_type + 1;
+                else
+                    atoms_vis(2,atom_count) = os(oi).index;
+                end
+                atoms_vis(3:5,atom_count) = os(oi).r(:,io);
+            end
+        end
+
+        %%% edit types for linkers
         for lio = 1:os(oi).nlink5
             io = os(oi).link5s_io(lio);
             iu = get_iu(oi,io);
+            if iu == 0
+                error("Linker bead does not exist.")
+            end
             li = os(oi).link5s_index(lio);
-            type = 1 + 2*li;
-            atoms(2,iu) = type;
+            atoms(2,iu) = 1 + 2*li;
+            atoms_vis(2,iu) = norigami_type + 1 + li;
             if os(oi).is_patch(io)
-                masses(type) = mass_patch;
+                masses(1+2*li) = mass_patch;
             end
         end
         for lio = 1:os(oi).nlink3
             io = os(oi).link3s_io(lio);
             iu = get_iu(oi,io);
+            if iu == 0
+                error("Linker bead does not exist.")
+            end
             li = os(oi).link3s_index(lio);
-            type = 2 + 2*li;
-            atoms(2,iu) = type;
+            atoms(2,iu) = 2 + 2*li;
+            atoms_vis(2,iu) = norigami_type + 1 + li;
             if os(oi).is_patch(io)
-                masses(type) = mass_patch;
+                masses(2+2*li) = mass_patch;
             end
         end
     end
 
     %%% connection bonds
     bonds = zeros(3,0);
-    if nconn > 0
-        bond_count = 0;
-        for oi = 1:length(os)
-            for ci = 1:length(os(oi).conns_pot)
+    bond_count = 0;
+    for oi = 1:length(os)
+        for ci = 1:length(os(oi).conns_pot)
+            if os(oi).conns_status(ci) == 1
                 bond_count = bond_count + 1;
                 type = os(oi).conns_pot(ci).index;
                 iu1 = get_iu( oi, os(oi).get_io( os(oi).conns_bis(1,ci), os(oi).conns_ibs(1,ci) ) );
                 iu2 = get_iu( oi, os(oi).get_io( os(oi).conns_bis(2,ci), os(oi).conns_ibs(2,ci) ) );
+                if iu1 == 0 || iu2 == 0
+                    error("Connection bead does not exist.")
+                end
                 bonds(1,bond_count) = type;
                 bonds(2,bond_count) = iu1;
                 bonds(3,bond_count) = iu2;
@@ -459,20 +537,25 @@ function compose_geo(geoFile,geoVisFile,os,nABAtype,dbox)
     end
 
     %%% rigid bonds for angles
-    if nangle > 0
-        type = nABAtype(2);
-        for oi = 1:length(os)
-            for ai = 1:length(os(oi).angles_apot)
+    for oi = 1:length(os)
+        for ai = 1:length(os(oi).angles_apot)
+            if os(oi).angles_status(ai) == 1
                 iu1 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(1,ai), os(oi).angles_ibs(1,ai) ) );
                 iu2 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(2,ai), os(oi).angles_ibs(2,ai) ) );
+                if iu1 == 0 || iu2 == 0
+                    error("Angle bead does not exist.")
+                end
                 bond_count = bond_count + 1;
-                bonds(1,bond_count) = type;
+                bonds(1,bond_count) = nABAtype(2);
                 bonds(2,bond_count) = iu1;
                 bonds(3,bond_count) = iu2;
                 iu3 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(3,ai), os(oi).angles_ibs(3,ai) ) );
                 iu4 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(4,ai), os(oi).angles_ibs(4,ai) ) );
+                if iu3 == 0 || iu4 == 0
+                    error("Angle bead does not exist.")
+                end
                 bond_count = bond_count + 1;
-                bonds(1,bond_count) = type;
+                bonds(1,bond_count) = nABAtype(2);
                 bonds(2,bond_count) = iu3;
                 bonds(3,bond_count) = iu4;
             end
@@ -480,11 +563,11 @@ function compose_geo(geoFile,geoVisFile,os,nABAtype,dbox)
     end
 
     %%% compile angle info
-    angles = zeros(4,nangle);
-    if nangle > 0
-        angle_count = 0;
-        for oi = 1:length(os)
-            for ai = 1:length(os(oi).angles_apot)
+    angles = zeros(4,0);
+    angle_count = 0;
+    for oi = 1:length(os)
+        for ai = 1:length(os(oi).angles_apot)
+            if os(oi).angles_status(ai) == 1
                 type = os(oi).angles_apot(ai).index;
                 iu1 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(1,ai), os(oi).angles_ibs(1,ai) ) );
                 iu2 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(2,ai), os(oi).angles_ibs(2,ai) ) );
@@ -506,34 +589,6 @@ function compose_geo(geoFile,geoVisFile,os,nABAtype,dbox)
 
     %%% write simulation geometry file
     ars.writeGeo(geoFile,dbox,atoms,bonds,angles,masses=masses,nbondType=nABAtype(2),nangleType=nABAtype(3));
-
-    %%% compile atom info for visualization
-    atoms_vis = atoms;
-    norigami_type = length(unique([os.index]));
-    for iu = 1:natom
-        oi = get_oi(iu);
-        io = get_io(iu);
-        atoms_vis(1,iu) = oi;
-        if os(oi).is_patch(io)
-            atoms_vis(2,iu) = norigami_type + 1;
-        else
-            atoms_vis(2,iu) = os(oi).index;
-        end
-    end
-    for oi = 1:length(os)
-        for lio = 1:os(oi).nlink5
-            io = os(oi).link5s_io(lio);
-            iu = get_iu(oi,io);
-            li = os(oi).link5s_index(lio);
-            atoms_vis(2,iu) = norigami_type + 1 + li;
-        end
-        for lio = 1:os(oi).nlink3
-            io = os(oi).link3s_io(lio);
-            iu = get_iu(oi,io);
-            li = os(oi).link3s_index(lio);
-            atoms_vis(2,iu) = norigami_type + 1 + li;
-        end
-    end
 
     %%% write visualization geometry file
     ars.writeGeo(geoVisFile,dbox,atoms_vis,bonds,angles)
@@ -642,7 +697,7 @@ function write_input(inputFile,p,linker_types,potential_types,angle_types)
         "thermo          ", num2str(p.dump_every), "\n\n"));
 
     %%% relaxation
-    if p.nstep_eq > 0
+    if p.nstep_relax > 0
         fprintf(f,strcat(...
             "## Relaxation\n",...
             "timestep        ", num2str(p.dt/10), "\n"));
@@ -654,7 +709,7 @@ function write_input(inputFile,p,linker_types,potential_types,angle_types)
                 "                z final ", ars.fstring(-p.dbox/2*p.shrink_ratio,0,2), " ", ars.fstring(p.dbox/2*p.shrink_ratio,0,2), "\n"));
         end
         fprintf(f,strcat(...
-            "run             ", num2str(p.nstep_eq), "\n"));
+            "run             ", num2str(p.nstep_relax), "\n"));
         if p.shrink_ratio ~= 1
             fprintf(f,strcat(...
                 "unfix           shrink\n"));
@@ -680,7 +735,7 @@ function write_input(inputFile,p,linker_types,potential_types,angle_types)
     end
     
     %%% updates
-    if p.nstep_prod > 0
+    if p.nstep > 0
         fprintf(f,strcat(...
             "## Updates\n",...
             "dump            dump1 all custom ", num2str(p.dump_every), " trajectory.dat id mol xs ys zs\n",...
@@ -694,11 +749,11 @@ function write_input(inputFile,p,linker_types,potential_types,angle_types)
     end
 
     %%% production
-    if p.nstep_prod > 0
+    if p.nstep > 0
         fprintf(f,strcat(...
             "## Production\n",...
             "timestep        ", num2str(p.dt), "\n",...
-            "run             ", num2str(p.nstep_prod), "\n"));
+            "run             ", num2str(p.nstep), "\n"));
     end
     
     %%% finalize and close file
@@ -727,3 +782,50 @@ function write_bond_create(f,fix_name,group_name,react_every,atomType1,atomType2
         "iparam 1 ", num2str(atomType1), " ",...
         "jparam 1 ", num2str(atomType2), "\n"));
 end
+
+
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Calculations %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%% initilize positions of the entire system
+function os = init_positions(os,p)
+    max_attempts = 10;
+
+    %%% system attempt loop
+    attempts = 0;
+    while true
+
+        %%% initialize avoided positions
+        r_other = [];
+
+        %%% check system attempts
+        if attempts == max_attempts
+            error("Could not place origamis.")
+        end
+
+        %%% loop over origamis
+        for oi = 1:length(os)
+
+            %%% place origami
+            disp(strcat("Initializing origami ",num2str(oi),"..."))
+            [os(oi),failed,r_other] = os(oi).init_positions(p,r_other);
+
+            %%% stop looping through origamis if one failed
+            if failed == true
+                break
+            end
+        end
+
+        %%% check if origami loop succeeded
+        if failed == true
+            attempts = attempts + 1;
+            continue
+        end
+
+        %%% system successfully initiated
+        fprintf("Initialization complete.\n")
+        break
+    end
+end
+

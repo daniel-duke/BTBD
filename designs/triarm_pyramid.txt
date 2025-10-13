@@ -1,0 +1,66 @@
+%%% simulation parameters
+nstep           1E7
+dump_every      1E4
+dbox            200
+dt              0.04
+sigma           10
+epsilon         1
+r12_bead        5
+r12_helix       5
+
+%%% potentials
+bond_pot dummy  zero 0
+bond_pot CUds   harmonic 15 10
+bond_pot CLds   harmonic 7.8 10
+bond_pot Lse    harmonic 5 10
+angle_pot CUds  180 2
+angle_pot CLds  180 4
+angle_pot Lse   180 40
+
+%%% inert block
+block Bi        1HB 5
+patch CRUB      Bi  3.6  3.6 15
+patch CRLB      Bi  3.6 -3.6 15
+patch CRUF      Bi  3.6  3.6 0
+patch CRLF      Bi  3.6 -3.6 0
+patch CLUB      Bi -3.6  3.6 15
+patch CLLB      Bi -3.6 -3.6 15
+patch CLUF      Bi -3.6  3.6 0
+patch CLLF      Bi -3.6 -3.6 0
+
+%%% active block
+block Ba        copy Bi
+patch LUF       Ba  0  3.6 25
+patch LUB       Ba  0  3.6 20
+patch LLF       Ba  0 -3.6 25
+patch LLB       Ba  0 -3.6 20
+
+%%% origami
+origami O1      6 rigid block
+O1 blocks       Ba Ba Bi
+O1 conn         1 CRUF 2 CLUF CUds
+O1 conn         1 CRLF 2 CLLF CLds
+O1 conn         2 CRUF 3 CLUF CUds
+O1 conn         2 CRLF 3 CLLF CLds
+O1 conn         3 CRUF 1 CLUF CUds
+O1 conn         3 CRLF 1 CLLF CLds
+O1 conn         1 LUF 1 LUB dummy
+O1 conn         1 LLF 1 LLB dummy
+O1 conn         2 LUF 2 LUB dummy
+O1 conn         2 LLF 2 LLB dummy
+O1 angle        1 CRUB CRUF 2 CLUF CLUB CUds theta_init 135 axis_init 1 1 0
+O1 angle        2 CRUB CRUF 3 CLUF CLUB CLds theta_init 135 axis_init 1 1 0
+O1 angle        3 CRUB CRUF 1 CLUF CLUB CUds theta_init 135 axis_init 1 1 0
+O1 angle        1 CRLB CRLF 2 CLLF CLLB CLds theta_init 135 axis_init 1 1 0
+O1 angle        2 CRLB CRLF 3 CLLF CLLB CUds theta_init 135 axis_init 1 1 0
+O1 angle        3 CRLB CRLF 1 CLLF CLLB CLds theta_init 135 axis_init 1 1 0
+
+%%% linkers
+linker L1       Lse 6
+L1 angle        Lse theta_min 120
+L1 5p           O1 1 LUF
+L1 3p           O1 2 LUF
+linker L2       Lse 6
+L2 angle        Lse theta_min 120
+L2 5p           O1 1 LLF
+L2 3p           O1 2 LLF

@@ -9,11 +9,13 @@ classdef block
         nhelix          % number of helices
         n_helix         % number of beads in each helix
         r_internal      % internal positions (in bead units)
+        R               % rotation matrix (block to lab coords)
         npatch          % number of patches
-        patches         % names of patches
+        patches         % patch name
         n_real          % number of real (structural) beads
-        n               % number of total beads (including patches)
+        n               % number of beads (structural and patches)
         r               % bead positions
+        status          % bead status
         get_hi          % map ib to hi
         get_zi          % map ib to zi
         get_ib          % map hi and zi to ib
@@ -21,18 +23,20 @@ classdef block
 
     methods
         %%% constructor
-        function b = block(pattern_label,n_helix)
+        function b = block(pattern_label,n_helix,p)
             if nargin > 0
                 [b.pattern,b.hiH,b.hiL,b.hiR,b.hiM] = block.setpat(pattern_label);
                 b.nhelix = size(b.pattern,2);
                 b.n_helix = n_helix;
+                b.R = eye(3);
                 b.npatch = 0;
                 b.patches = {};
                 b.n_real = b.calc_nbead;
                 b.n = b.n_real;
                 b.r = zeros(3,b.n);
+                b.status = ones(1,b.n);
                 [b.get_hi,b.get_zi,b.get_ib] = map_indices(b);
-                b.r_internal = init_positions_internal(b);
+                b.r_internal = init_positions_internal(b,p);
             end
         end
 
@@ -47,6 +51,7 @@ classdef block
             b.patches{b.npatch} = name;
             b.n = b.n + 1;
             b.r(:,b.n) = zeros(3,1);
+            b.status(b.n) = 1;
             b.r_internal(:,b.n) = [x;y;z];
         end
 
@@ -82,13 +87,13 @@ classdef block
 
 
         %%% set the positions of the block within its own coordinate system
-        function r_internal = init_positions_internal(b)
+        function r_internal = init_positions_internal(b,p)
             r_internal = zeros(3,b.n);
             for ib = 1:b.n_real
                 hi = b.get_hi(ib);
                 zi = b.get_zi(ib);
-                r_internal(1:2,ib) = b.pattern(:,hi);
-                r_internal(3,ib) = zi-1;
+                r_internal(1:2,ib) = p.r12_helix.*b.pattern(:,hi);
+                r_internal(3,ib) = p.r12_bead.*(zi-1);
             end
         end
 
@@ -139,85 +144,38 @@ classdef block
             end
         end
 
+        
+        %%% add real block positions to list of positions
+        function r = append_positions(b,r)
+            r = ars.myHorzcat(r,b.r(:,1:b.n-b.npatch));
+        end
 
-        %%% initialize block with bead indexed by ib_conn connected by r12_conn to r_source 
-        function [b,failed,r_other] = init_positions(b,p,r_source,r12_uv_conn,r12_eq_conn,ib_conn,R,conns_pot,conns_r1,conns_ib2,r_other)
-            max_attempts = 100;
 
-            %%% determine if connection direction should be random
-            randomize_conn_dir = false;
-            if r12_uv_conn == false
-                randomize_conn_dir = true;
-            end
+        %%% initialize block with bead indexed by ib_conn at r_conn
+        function [b,failed] = init_positions(b,p,ib_conn,r_conn,R,r_other)
 
-            %%% determine if block direction should be random
-            randomize_block_dir = false;
-            if R == false
-                randomize_block_dir = true;
-            end
-
-            %%% placement attempt loop
-            attempts = 0;
-            while true
-
-                %%% check block attempts
-                if attempts == max_attempts
+            %%% real bead absolute positions
+            com = r_conn - R*b.r_internal(:,ib_conn);
+            b.r = zeros(3,b.n);
+            for ib = 1:b.n_real
+                b.r(:,ib) = com + R*b.r_internal(:,ib);
+                overlap = ars.checkOverlap(b.r(:,ib),r_other,p.r12_cut_WCA,p.dbox);
+                if overlap
                     failed = true;
                     return
                 end
-
-                %%% get position of connected bead
-                if randomize_conn_dir
-                    r12_uv_conn = ars.randUnitVec();
-                end
-
-                %%% get direction of block
-                if randomize_block_dir
-                    z_basis = ars.randUnitVec();
-                    y_basis = ars.unitVector(cross(z_basis,ars.randUnitVec()));
-                    x_basis = cross(y_basis,z_basis);
-                    R = [x_basis,y_basis,z_basis];
-                end
-    
-                %%% real bead absolute positions
-                r_start = r_source + r12_eq_conn.*r12_uv_conn;
-                com = r_start - R*b.r_internal(:,ib_conn);
-                b.r = zeros(3,b.n);
-                for ib = 1:b.n_real
-                    b.r(:,ib) = com + R*b.r_internal(:,ib);
-                    overlap = ars.checkOverlap(b.r(:,ib),r_other,p.r12_cut_WCA,p.dbox);
-                    if overlap
-                        break
-                    end
-                end
-
-                %%% reset if overlap
-                if overlap
-                    attempts = attempts + 1;
-                    continue
-                end
-    
-                %%% patch bead absolute positions
-                for pi = 1:b.npatch
-                    ib = b.n-b.npatch+pi;
-                    b.r(:,ib) = com + R*b.r_internal(:,ib);
-                end
-
-                %%% check connections
-                nconn = length(conns_pot);
-                for ci = 1:nconn
-                    r2 = b.r(:,conns_ib2);
-                    U = conns_pot(ci).calc_energy(norm(r2-conns_r1));
-                    if U > p.U_overstretched
-                        attempts = attempts + 1;
-                    end
-                end
-
-                %%% block successfully initiated
-                r_other = ars.myHorzcat(r_other,b.r(:,1:b.n-b.npatch));
-                failed = false;
-                return
             end
+
+            %%% patch bead absolute positions
+            for pi = 1:b.npatch
+                ib = b.n-b.npatch+pi;
+                b.r(:,ib) = com + R*b.r_internal(:,ib);
+            end
+
+            %%% block successfully initiated
+            b.R = R;
+            failed = false;
+            return
         end
     
     end

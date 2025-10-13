@@ -74,7 +74,7 @@ function writeGeo(geoFile,dbox,atoms,bonds,angles,options)
     fprintf(f,"## Number of object types\n");
     fprintf(f,"\t" + ars.fstring(natomType,len_nobjectType,0,"L") + " atom types\n");
     if nbondType > 0; fprintf(f,"\t" + ars.fstring(nbondType,len_nobjectType,0,"L") + " bond types\n"); end
-    if nangleType > 0; fprintf(f,"\t" + ars.fstring(nangleType,len_nobjectType,0,"L") + " angle types\n\n"); end
+    if nangleType > 0; fprintf(f,"\t" + ars.fstring(nangleType,len_nobjectType,0,"L") + " angle types\n"); end
     fprintf(f,"\n");
 
     %%% define simulation box

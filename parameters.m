@@ -1,12 +1,12 @@
 %%% parameters class for BTBD
 classdef parameters
     properties
-        nstep_eq
-        shrink_ratio
-        nstep_prod
+        nstep
+        nstep_relax
         dump_every
-        dt
         dbox
+        shrink_ratio
+        dt
         verlet_skin
         neigh_every
         react_every
@@ -16,31 +16,29 @@ classdef parameters
         r12_cut_WCA
         r12_helix
         r12_bead
-        U_overstretched
+        U_strained
     end
 
     methods
         %%% constructor
-        function p = parameters(nstep_eq,shrink_ratio,nstep_prod,dump_every,...
-                                dt,dbox,verlet_skin,neigh_every,react_every,...
-                                T,sigma,epsilon,r12_helix,r12_bead,U_overstretched)
+        function p = parameters(p_in)
             if nargin > 0
-                p.nstep_eq = nstep_eq;
-                p.shrink_ratio = shrink_ratio;
-                p.nstep_prod = nstep_prod;
-                p.dump_every = dump_every;
-                p.dt = dt;
-                p.dbox = dbox;
-                p.verlet_skin = verlet_skin;
-                p.neigh_every = neigh_every;
-                p.react_every = react_every;
-                p.T = T;
-                p.sigma = sigma;
-                p.epsilon = 6.96*epsilon;
+                p.nstep = p_in.nstep;
+                p.nstep_relax = p_in.nstep_relax;
+                p.dump_every = p_in.dump_every;
+                p.dbox = p_in.dbox;
+                p.shrink_ratio = p_in.shrink_ratio;
+                p.dt = p_in.dt;
+                p.verlet_skin = p_in.verlet_skin;
+                p.neigh_every = p_in.neigh_every;
+                p.react_every = p_in.react_every;
+                p.T = p_in.T;
+                p.sigma = p_in.sigma;
+                p.epsilon = 6.96*p_in.epsilon;
                 p.r12_cut_WCA = p.sigma*2^(1/6);
-                p.r12_helix = r12_helix;
-                p.r12_bead = r12_bead;
-                p.U_overstretched = 6.96*U_overstretched;
+                p.r12_helix = p_in.r12_helix;
+                p.r12_bead = p_in.r12_bead;
+                p.U_strained = 6.96*p_in.U_strained;
             end
         end
     end
