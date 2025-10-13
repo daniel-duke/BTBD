@@ -1,4 +1,4 @@
-%%% simulation parameters
+%%% parameters
 nstep           1E7
 dump_every      1E4
 dbox            150

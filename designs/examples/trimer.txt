@@ -1,3 +1,13 @@
+%%% parameters
+nstep           1E7                 % number of production steps
+dump_every      1E4                 % number of relaxation/shrink steps
+dbox            200                 % periodic boundary diameter
+dt              0.04                % integration time step
+sigma           10                  % WCA distance parameter
+epsilon         1                   % WCA energy parameters
+r12_bead        5                   % block bead separation in xy-plane
+r12_helix       5                   % block bead separation along z-axis
+
 %%% potentials
 bond_pot ssC    harmonic 6 1        % style, equilibrium separation, parameter(s)
 

@@ -1,0 +1,20 @@
+%%% parameters
+nstep           1E7                 % number of production steps
+dump_every      1E4                 % number of relaxation/shrink steps
+dbox            100                 % periodic boundary diameter
+dt              0.04                % integration time step
+sigma           10                  % WCA distance parameter
+epsilon         1                   % WCA energy parameters
+r12_bead        5                   % block bead separation in xy-plane
+r12_helix       5                   % block bead separation along z-axis
+
+%%% blocks
+block B1        1HB 11              % pattern in xy-plane, number of beads in z-axis
+
+%%% patches
+patch L1        B1 5 0 5            % block type, x, y, z
+patch L2        B1 5 0 45           % block type, x, y, z
+
+%%% origami
+origami O1      10                  % count
+O1 blocks       B1                  % block type(s)

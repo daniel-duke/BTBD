@@ -221,6 +221,7 @@ classdef origami
                 r_other_origami = o.bs(1).append_positions(r_other_origami);
 
                 %%% loop over remaining blocks
+                failed_block = false;
                 for bi = 2:length(o.bs)
     
                     %%% find first connection between block and any previous block
@@ -307,7 +308,7 @@ classdef origami
                         if theta_init_angle1 == 0
 
                             %%% connection position
-                            r_b1_conn1 = o.bs(b0).r(:,ib_b0_conn1) + r12_eq_conn1*ars.randUnitVector();
+                            r_b1_conn1 = o.bs(b0).r(:,ib_b0_conn1) + r12_eq_conn1*ars.randUnitVec();
     
                             %%% block rotation
                             R = ars.randBasis();
@@ -317,7 +318,7 @@ classdef origami
 
                             %%% bending axis
                             if all(axis_init_angle1==0)
-                                r12_axis = cross(r12_uv_patches_b0_angle1,ars.randUnitVector());
+                                r12_axis = cross(r12_uv_patches_b0_angle1,ars.randUnitVec());
                             else
                                 r12_axis = R_b0_conn1*axis_init_angle1;
                                 if abs(dot(r12_uv_patches_b0_angle1,r12_axis)) > tolerance
