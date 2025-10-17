@@ -15,18 +15,16 @@ classdef origami
         angles_theta_init   % angle initial theta
         angles_axis_init    % angle initial axis
         angles_status       % angle status
-        nlink5              % number of 5p linkers
-        link5s_index        % 5p linkers linker name
-        link5s_io           % 5p linkers bead index within origami
-        nlink3              % number of 3p linker ends
-        link3s_index        % 3p linkers index
-        link3s_io           % 3p linkers bead index within origami
+        ndihedral           % number of dihedrals
+        dihedrals_bis       % dihedral block indices
+        dihedrals_ibs       % dihedral bead indices
+        dihedrals_dpot      % dihedral potential
         n                   % total number of beads
         r                   % total positions
         get_bi              % map io to bi
         get_ib              % map io to ib
         get_io              % map bi and ib to io
-        index               % origami type
+        index               % origami type, for visualization
     end
 
     methods
@@ -46,12 +44,10 @@ classdef origami
             o.angles_theta_init = [];
             o.angles_axis_init = [];
             o.angles_status = [];
-            o.nlink5 = 0;
-            o.link5s_index = [];
-            o.link5s_io = [];
-            o.nlink3 = 0;
-            o.link3s_index = [];
-            o.link3s_io = [];
+            o.ndihedral = 0;
+            o.dihedrals_bis = [];
+            o.dihedrals_ibs = [];
+            o.dihedrals_dpot = dihedral_pot.empty;
             o.index = index;
         end
 
@@ -72,8 +68,8 @@ classdef origami
         function o = add_conn(o,bi1,patch1,bi2,patch2,pot)
             o.nconn = o.nconn + 1;
             o.conns_bis(:,o.nconn) = [bi1;bi2];
-            ib1 = o.bs(bi1).get_patch_ib(patch1);
-            ib2 = o.bs(bi2).get_patch_ib(patch2);
+            ib1 = o.bs(bi1).get_ib_patch(patch1);
+            ib2 = o.bs(bi2).get_ib_patch(patch2);
             o.conns_ibs(:,o.nconn) = [ib1;ib2];
             o.conns_pot(o.nconn) = pot;
             o.conns_status(o.nconn) = 1;
@@ -84,10 +80,10 @@ classdef origami
         function o = add_angle(o,bi1,patch11,patch12,bi2,patch21,patch22,apot)
             o.nangle = o.nangle + 1;
             o.angles_bis(:,o.nangle) = [bi1;bi1;bi2;bi2];
-            ib11 = o.bs(bi1).get_patch_ib(patch11);
-            ib12 = o.bs(bi1).get_patch_ib(patch12);
-            ib21 = o.bs(bi2).get_patch_ib(patch21);
-            ib22 = o.bs(bi2).get_patch_ib(patch22);
+            ib11 = o.bs(bi1).get_ib_patch(patch11);
+            ib12 = o.bs(bi1).get_ib_patch(patch12);
+            ib21 = o.bs(bi2).get_ib_patch(patch21);
+            ib22 = o.bs(bi2).get_ib_patch(patch22);
             o.angles_ibs(:,o.nangle) = [ib11;ib12;ib21;ib22];
             o.angles_apot(o.nangle) = apot;
             o.angles_theta_init(o.nangle) = apot.theta_eq;
@@ -96,31 +92,16 @@ classdef origami
         end
 
 
-        %%% add linker to origami
-        function o = add_linker(o,is_5p,li,bi,patch)
-            if bi == "A"
-                bi_min = 1;
-                bi_max = length(o.bs);
-            elseif bi == "B"
-                bi_min = 1;
-                bi_max = length(o.bs) - 1;
-            else
-                bi_min = str2double(bi);
-                bi_max = str2double(bi);
-            end
-            for bi = bi_min:bi_max
-                ib = o.bs(bi).get_patch_ib(patch);
-                io = o.get_io(bi,ib);
-                if is_5p
-                    o.nlink5 = o.nlink5 + 1;
-                    o.link5s_index(o.nlink5) = li;
-                    o.link5s_io(o.nlink5) = io;
-                else
-                    o.nlink3 = o.nlink3 + 1;
-                    o.link3s_index(o.nlink3) = li;
-                    o.link3s_io(o.nlink3) = io;
-                end
-            end
+        %%% add dihedral to origami
+        function o = add_dihedral(o,bi1,patch11,patch12,bi2,patch21,patch22,dpot)
+            o.ndihedral = o.ndihedral + 1;
+            o.dihedrals_bis(:,o.ndihedral) = [bi1;bi1;bi2;bi2];
+            ib11 = o.bs(bi1).get_ib_patch(patch11);
+            ib12 = o.bs(bi1).get_ib_patch(patch12);
+            ib21 = o.bs(bi2).get_ib_patch(patch21);
+            ib22 = o.bs(bi2).get_ib_patch(patch22);
+            o.dihedrals_ibs(:,o.ndihedral) = [ib11;ib12;ib21;ib22];
+            o.dihedrals_dpot(o.ndihedral) = dpot;
         end
 
 
@@ -149,7 +130,7 @@ classdef origami
 
 
         %%% ensure connections are not too strained
-        function failed = are_conns_overstretched(o,p,bi)
+        function failed = are_conns_strained(o,p,bi)
             failed = false;
             for ci = 1:o.nconn
                 if o.conns_bis(1,ci) <= bi && o.conns_bis(2,ci) <= bi
@@ -168,7 +149,7 @@ classdef origami
 
         
         %%% ensure angles are not too strained
-        function failed = are_angles_overstretched(o,p,bi)
+        function failed = are_angles_strained(o,p,bi)
             failed = false;
             for ai = 1:o.nangle
                 if o.angles_bis(1,ai) <= bi && o.angles_bis(3,ai) <= bi
@@ -182,9 +163,34 @@ classdef origami
                         r34_uv = ars.unitVector(r4-r3);
                         theta1 = 180-acosd(dot(r12_uv,r23_uv));
                         theta2 = 180-acosd(dot(r23_uv,r34_uv));
-                        U1 = o.angles_apot(ai).k_theta/2*(theta1-o.angles_theta_init(ai))^2;
-                        U2 = o.angles_apot(ai).k_theta/2*(theta2-o.angles_theta_init(ai))^2;
+                        U1 = o.angles_apot(ai).calc_energy(theta1,o.angles_theta_init(ai));
+                        U2 = o.angles_apot(ai).calc_energy(theta2,o.angles_theta_init(ai));
                         if U1 > p.U_strained || U2 > p.U_strained
+                            failed = true;
+                            return
+                        end
+                    end
+                end
+            end
+        end
+
+
+        %%% ensure dihedrals are not too strained
+        function failed = are_dihedrals_strained(o,p,bi)
+            failed = false;
+            for di = 1:o.ndihedral
+                if o.dihedrals_bis(1,di) <= bi && o.dihedrals_bis(3,di) <= bi
+                    if o.dihedrals_bis(1,di) == bi || o.dihedrals_bis(3,di) == bi
+                        r1 = o.bs(o.dihedrals_bis(1,di)).r(:,o.dihedrals_ibs(1,di));
+                        r2 = o.bs(o.dihedrals_bis(2,di)).r(:,o.dihedrals_ibs(2,di));
+                        r3 = o.bs(o.dihedrals_bis(3,di)).r(:,o.dihedrals_ibs(3,di));
+                        r4 = o.bs(o.dihedrals_bis(4,di)).r(:,o.dihedrals_ibs(4,di));
+                        r12_uv = ars.unitVector(r2-r1);
+                        r23_uv = ars.unitVector(r3-r2);
+                        r34_uv = ars.unitVector(r4-r3);
+                        phi = ars.calcDihedral(r12_uv,r23_uv,r34_uv);
+                        U = o.dihedrals_dpot(di).calc_energy(phi);
+                        if U > p.U_strained
                             failed = true;
                             return
                         end
@@ -356,8 +362,8 @@ classdef origami
                             continue
                         end
 
-                        %%% check connections and angles
-                        if are_conns_overstretched(o,p,bi) || are_angles_overstretched(o,p,bi)
+                        %%% check connections and angles and dihedrals
+                        if are_conns_strained(o,p,bi) || are_angles_strained(o,p,bi) || are_dihedrals_strained(o,p,bi)
                             attempts_block = attempts_block + 1;
                             continue
                         end

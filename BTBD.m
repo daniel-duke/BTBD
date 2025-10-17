@@ -1,9 +1,8 @@
 %%% Housekeeping
 clc; clear; close all;
-rng(41)
+rng(42)
 
 %%% To Do
-% use fix bond react.
 % update readme.
 
 %%% Notation
@@ -25,14 +24,14 @@ rng(41)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% read input
-inFile = "./designs/triarm_ds3.txt";
-[p,os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile);
+inFile = "./designs/examples/control.txt";
+[p,os,linkers,reactions,pots,apots,dpots,nABADtype] = read_input(inFile);
 
 %%% set output
 outFold = "/Users/dduke/Files/block_tether/network/experiment/active/";
 nsim = 1;
 
-%%% create output folder 
+%%% create output folder
 mkdir(outFold)
 
 %%% loop over simulations
@@ -50,11 +49,12 @@ for i = 1:nsim
     %%% write lammps simulation geometry file
     geoFile = simFold + "geometry.in";
     geoVisFile = simFold + "geometry_vis.in";
-    compose_geo(geoFile,geoVisFile,p.dbox,nABAtype,os);
+    compose_geo(geoFile,geoVisFile,p.dbox,nABADtype,os,linkers,reactions);
     
     %%% write lammps input file
     inputFile = simFold + "lammps.in";
-    write_input(inputFile,p,linker_types,pot_types,apot_types)
+    reactFold = simFold + "react/";
+    write_input(inputFile,reactFold,p,nABADtype,pots,apots,dpots,linkers,reactions)
 end
 
 
@@ -81,7 +81,8 @@ function p = read_parameters(inFile)
         'epsilon',      NaN, ...        % kcal/mol      - WCA energy parameter
         'r12_bead',     NaN, ...        % nm            - block bead separation in xy-plane
         'r12_helix',    NaN, ...        % nm            - block bead separation along z-axis
-        'U_strained',   10   ...        % kcal/mol      - max energy for initialized bonds and angles
+        'U_strained',   10,  ...        % kcal/mol      - max energy for initialized bonds and angles
+        'comm_cutoff',  0    ...        % nm            - communication_cutoff
     );
 
     %%% open file
@@ -121,7 +122,7 @@ end
 
 
 %%% read input file and create corresponding origami objects
-function [p,os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
+function [p,os,linkers,reactions,pots,apots,dpots,nABADtype] = read_input(inFile)
 
     %%% read parameters
     p = read_parameters(inFile);
@@ -133,12 +134,20 @@ function [p,os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
     end
 
     %%% initialize dictionaries
-    pot_types = dictionary();
-    apot_types = dictionary();
+    pots = dictionary();
+    apots = dictionary();
+    dpots = dictionary();
     block_templates = dictionary();
     origami_templates = dictionary();
     origami_counts = dictionary();
-    linker_types = dictionary();
+    linkers = dictionary();
+    reactions = dictionary();
+
+    %%% define zero potential
+    pots("zero") = bond_pot("zero",0,zeros(0,1),1);
+
+    %%% keep track of atom types
+    ti_count = 2;
 
     %%% interpret on and off
     status = dictionary("on",1,"off",0);
@@ -159,7 +168,7 @@ function [p,os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
             continue
         end
 
-        %%% log input
+        %%% read input
         switch extract{1}
 
             %%% define bond potential
@@ -167,15 +176,24 @@ function [p,os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
                 style = string(extract{3});
                 r12_eq = str2double(extract{4});
                 params = str2double(extract(5:end));
-                index = 1 + numEntries(pot_types);
-                pot_types(extract{2}) = bond_pot(style,r12_eq,params,index);
+                index = 1 + numEntries(pots);
+                pots(extract{2}) = bond_pot(style,r12_eq,params,index);
 
             %%% define angle potential
             case 'angle_pot'
-                theta_eq = str2double(extract{3});
-                k_theta = str2double(extract{4});
-                index = 1+numEntries(apot_types);
-                apot_types(extract{2}) = angle_pot(theta_eq,k_theta,index);
+                style = string(extract{3});
+                theta_eq = str2double(extract{4});
+                params = str2double(extract(5:end));
+                index = 1+numEntries(apots);
+                apots(extract{2}) = angle_pot(style,theta_eq,params,index);
+
+            %%% define angle potential
+            case 'dihedral_pot'
+                style = string(extract{3});
+                theta_eq = str2double(extract{4});
+                params = str2double(extract(5:end));
+                index = 1+numEntries(dpots);
+                dpots(extract{2}) = dihedral_pot(style,theta_eq,params,index);
 
             %%% define block
             case 'block'
@@ -238,11 +256,21 @@ function [p,os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
 
             %%% initialize linker
             case 'linker'
-                pot_index = pot_types(extract{3}).index;
+                label = string(extract{2});
+                pot_index = pots(extract{3}).index;
                 r12_cut = str2double(extract{4});
-                index = 1 + numEntries(linker_types);
-                linker_types(extract{2}) = linker(pot_index,r12_cut,index);
+                ti_start = ti_count + 1;
+                linkers(extract{2}) = linker(label,pot_index,r12_cut,ti_start);
+                ti_count = ti_count + 2;
             
+            %%% initialize reaction
+            case 'reaction'
+                style = string(extract{3});
+                params = extract(4:end);
+                ti_start = ti_count + 1;
+                reactions(extract{2}) = reaction(extract{2},style,params,ti_start);
+                ti_count = ti_count + reactions(extract{2}).nti;
+
            %%% add features to origamis and linkers
             otherwise
 
@@ -263,7 +291,7 @@ function [p,os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
                             patch1 = extract{4};
                             bi2 = str2double(extract{5});
                             patch2 = extract{6};
-                            pot = pot_types(extract{7});
+                            pot = pots(extract{7});
                             origami_templates(extract{1}) = origami_templates(extract{1}).add_conn(bi1,patch1,bi2,patch2,pot);
                         
                             %%% keyword value pairs
@@ -290,7 +318,7 @@ function [p,os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
                             bi2 = str2double(extract{6});
                             patch21 = extract{7};
                             patch22 = extract{8};
-                            apot = apot_types(extract{9});
+                            apot = apots(extract{9});
                             origami_templates(extract{1}) = origami_templates(extract{1}).add_angle(bi1,patch11,patch12,bi2,patch21,patch22,apot);
 
                             %%% keyword value pairs
@@ -317,32 +345,45 @@ function [p,os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
                                 end
                             end
 
+                        %%% add dihedral
+                        case 'dihedral'
+                            bi1 = str2double(extract{3});
+                            patch11 = extract{4};
+                            patch12 = extract{5};
+                            bi2 = str2double(extract{6});
+                            patch21 = extract{7};
+                            patch22 = extract{8};
+                            dpot = dpots(extract{9});
+                            origami_templates(extract{1}) = origami_templates(extract{1}).add_dihedral(bi1,patch11,patch12,bi2,patch21,patch22,dpot);
+
                         %%% error
                         otherwise
                             error("Unknown origami parameter: " + extract{2})
                     end
 
                 %%% add feature to linker
-                elseif numEntries(linker_types) > 0 && isKey(linker_types,extract{1})
+                elseif numEntries(linkers) > 0 && isKey(linkers,extract{1})
                     switch extract{2}
 
-                        %%% define 5' end
+                        %%% add 5' end
                         case '5p'
-                            li = linker_types(extract{1}).index;
+                            o = origami_templates(extract{3});
+                            ois = get_ois(origami_counts,extract{3});
                             bi = extract{4};
-                            patch = extract{5};
-                            origami_templates(extract{3}) = origami_templates(extract{3}).add_linker(1,li,bi,patch);
-                        
-                        %%% define 3' end
+                            patch = string(extract(5));
+                            linkers(extract{1}) = linkers(extract{1}).add_link(1,o,ois,bi,patch);
+
+                        %%% add 3' end
                         case '3p'
-                            li = linker_types(extract{1}).index;
+                            o = origami_templates(extract{3});
+                            ois = get_ois(origami_counts,extract{3});
                             bi = extract{4};
-                            patch = extract{5};
-                            origami_templates(extract{3}) = origami_templates(extract{3}).add_linker(0,li,bi,patch);
+                            patch = string(extract(5));
+                            linkers(extract{1}) = linkers(extract{1}).add_link(0,o,ois,bi,patch);
 
                         %%% add angle
                         case 'angle'
-                            linker_types(extract{1}).apot_index = apot_types(extract{3}).index;
+                            linkers(extract{1}).apot_index = apots(extract{3}).index;
 
                             %%% keyword value pairs
                             line_index = 4;
@@ -352,10 +393,10 @@ function [p,os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
                                 else
                                     switch extract{line_index}
                                         case 'theta_min'
-                                            linker_types(extract{1}).theta_min = str2double(extract{line_index+1});
+                                            linkers(extract{1}).theta_min = str2double(extract{line_index+1});
                                             line_index = line_index + 2;
                                         case 'theta_max'
-                                            linker_types(extract{1}).theta_max = str2double(extract{line_index+1});
+                                            linkers(extract{1}).theta_max = str2double(extract{line_index+1});
                                             line_index = line_index + 2;
                                         otherwise
                                             error("Unknown linker keyword: " + extract{line_index})
@@ -366,6 +407,27 @@ function [p,os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
                         %%% error
                         otherwise
                             error("Unknown linker parameter: " + extract{2})
+                    end
+
+                %%% add feature to reaction
+                elseif numEntries(reactions) > 0 && isKey(reactions,extract{1})
+                    switch extract{2}
+
+                        %%% add 5' end
+                        case '5p'
+                            o = origami_templates(extract{3});
+                            ois = get_ois(origami_counts,extract{3});
+                            bi = str2double(extract{4});
+                            patches = string(extract(5:end));
+                            reactions(extract{1}) = reactions(extract{1}).add_reactant(1,o,ois,bi,patches);
+                        
+                        %%% add 3' end
+                        case '3p'
+                            o = origami_templates(extract{3});
+                            ois = get_ois(origami_counts,extract{3});
+                            bi = str2double(extract{4});
+                            patches = string(extract(5:end));
+                            reactions(extract{1}) = reactions(extract{1}).add_reactant(0,o,ois,bi,patches);
                     end
 
                 %%% error
@@ -384,10 +446,11 @@ function [p,os,linker_types,pot_types,apot_types,nABAtype] = read_input(inFile)
     end
 
     %%% count atom, bond, angle types
-    natomType = 2 + numEntries(linker_types)*2;
-    nbondType = 1 + numEntries(pot_types);
-    nangleType = numEntries(apot_types);
-    nABAtype = [natomType,nbondType,nangleType];
+    natomType = ti_count;
+    nbondType = numEntries(pots);
+    nangleType = numEntries(apots);
+    ndihedralType = numEntries(dpots);
+    nABADtype = [natomType,nbondType,nangleType,ndihedralType];
 end
 
 
@@ -396,12 +459,12 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% write lammps geometry file
-function compose_geo(geoFile,geoVisFile,dbox,nABAtype,os)
+function compose_geo(geoFile,geoVisFile,dbox,nABADtype,os,linkers,reactions)
 
     %%% initialize mass info
-    masses = ones(1,nABAtype(1));
     mass_patch = 0.01;
-    masses(2) = mass_patch;
+    masses = ones(1,nABADtype(1));
+    masses(2:end) = mass_patch;
 
     %%% count origami types
     norigami_type = length(unique([os.index]));
@@ -456,32 +519,62 @@ function compose_geo(geoFile,geoVisFile,dbox,nABAtype,os)
                 atoms_vis(3:5,atom_count) = os(oi).r(:,io);
             end
         end
+    end
 
-        %%% edit types for linkers
-        for lio = 1:os(oi).nlink5
-            io = os(oi).link5s_io(lio);
-            iu = get_iu(oi,io);
-            if iu == 0
-                error("Linker bead does not exist.")
+    %%% edit types for linkers
+    if numEntries(linkers) > 0
+        for l_name = keys(linkers)'
+            l = linkers(l_name);
+            for li = 1:l.nlink5
+                oi = l.link5s_oi(li);
+                bi = l.link5s_bi(li);
+                ib = l.link5s_ib(li);
+                io = os(oi).get_io(bi,ib);
+                iu = get_iu(oi,io);
+                ti = l.ti_start;
+                atoms(2,iu) = ti;
+                atoms_vis(2,iu) = norigami_type + 1 + floor((ti-1)/2);
             end
-            li = os(oi).link5s_index(lio);
-            atoms(2,iu) = 1 + 2*li;
-            atoms_vis(2,iu) = norigami_type + 1 + li;
-            if os(oi).is_patch(io)
-                masses(1+2*li) = mass_patch;
+            for li = 1:l.nlink3
+                oi = l.link3s_oi(li);
+                bi = l.link3s_bi(li);
+                ib = l.link3s_ib(li);
+                io = os(oi).get_io(bi,ib);
+                iu = get_iu(oi,io);
+                ti = l.ti_start + 1;
+                atoms(2,iu) = ti;
+                atoms_vis(2,iu) = norigami_type + 1 + floor((ti-1)/2);
             end
         end
-        for lio = 1:os(oi).nlink3
-            io = os(oi).link3s_io(lio);
-            iu = get_iu(oi,io);
-            if iu == 0
-                error("Linker bead does not exist.")
+    end
+
+    %%% edit types for reactions
+    if numEntries(reactions) > 0
+        for l_name = keys(reactions)'
+            l = reactions(l_name);
+            for si = 1:l.nsite5
+                oi = l.site5s_oi(si);
+                bi = l.site5s_bi(si);
+                for is = 1:l.n_site5
+                    ib = l.site5s_ibs(is,si);
+                    io = os(oi).get_io(bi,ib);
+                    iu = get_iu(oi,io);
+                    ti = l.tis_site5(is);
+                    atoms(2,iu) = ti;
+                    atoms_vis(2,iu) = norigami_type + 1 + floor((ti-1)/2);
+                end
             end
-            li = os(oi).link3s_index(lio);
-            atoms(2,iu) = 2 + 2*li;
-            atoms_vis(2,iu) = norigami_type + 1 + li;
-            if os(oi).is_patch(io)
-                masses(2+2*li) = mass_patch;
+            for si = 1:l.nsite3
+                oi = l.site3s_oi(si);
+                bi = l.site3s_bi(si);
+                for is = 1:l.n_site3
+                    ib = l.site3s_ibs(is,si);
+                    io = os(oi).get_io(bi,ib);
+                    iu = get_iu(oi,io);
+                    ti = l.tis_site3(is);
+                    atoms(2,iu) = ti;
+                    atoms_vis(2,iu) = norigami_type + 1 + floor((ti-1)/2);
+                end
             end
         end
     end
@@ -493,20 +586,20 @@ function compose_geo(geoFile,geoVisFile,dbox,nABAtype,os)
         for ci = 1:length(os(oi).conns_pot)
             if os(oi).conns_status(ci) == 1
                 bond_count = bond_count + 1;
-                type = os(oi).conns_pot(ci).index;
+                bond_type = os(oi).conns_pot(ci).index;
                 iu1 = get_iu( oi, os(oi).get_io( os(oi).conns_bis(1,ci), os(oi).conns_ibs(1,ci) ) );
                 iu2 = get_iu( oi, os(oi).get_io( os(oi).conns_bis(2,ci), os(oi).conns_ibs(2,ci) ) );
                 if iu1 == 0 || iu2 == 0
                     error("Connection bead does not exist.")
                 end
-                bonds(1,bond_count) = type;
+                bonds(1,bond_count) = bond_type;
                 bonds(2,bond_count) = iu1;
                 bonds(3,bond_count) = iu2;
             end
         end
     end
 
-    %%% rigid bonds for angles
+    %%% rigid bonds for connection angles
     for oi = 1:length(os)
         for ai = 1:length(os(oi).angles_apot)
             if os(oi).angles_status(ai) == 1
@@ -516,7 +609,7 @@ function compose_geo(geoFile,geoVisFile,dbox,nABAtype,os)
                     error("Angle bead does not exist.")
                 end
                 bond_count = bond_count + 1;
-                bonds(1,bond_count) = nABAtype(2);
+                bonds(1,bond_count) = nABADtype(2);
                 bonds(2,bond_count) = iu1;
                 bonds(3,bond_count) = iu2;
                 iu3 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(3,ai), os(oi).angles_ibs(3,ai) ) );
@@ -525,9 +618,57 @@ function compose_geo(geoFile,geoVisFile,dbox,nABAtype,os)
                     error("Angle bead does not exist.")
                 end
                 bond_count = bond_count + 1;
-                bonds(1,bond_count) = nABAtype(2);
+                bonds(1,bond_count) = nABADtype(2);
                 bonds(2,bond_count) = iu3;
                 bonds(3,bond_count) = iu4;
+            end
+        end
+    end
+
+    %%% rigid bonds for reactions
+    if numEntries(reactions) > 0
+        for l_name = keys(reactions)'
+            l = reactions(l_name);
+            nbond = size(l.bonds_init,1);
+            for bondi = 1:nbond
+                bond_type = l.bonds_init(bondi,1);
+                ir1 = l.bonds_init(bondi,2);
+                ir2 = l.bonds_init(bondi,3);
+                if ir1 <= l.n_site5
+                    for si = 1:l.nsite5
+                        oi = l.site5s_oi(si);
+                        bi = l.site5s_bi(si);
+                        ib = l.site5s_ibs(ir1,si);
+                        io = os(oi).get_io(bi,ib);
+                        iu1 = get_iu(oi,io);
+                        oi = l.site5s_oi(si);
+                        bi = l.site5s_bi(si);
+                        ib = l.site5s_ibs(ir2,si);
+                        io = os(oi).get_io(bi,ib);
+                        iu2 = get_iu(oi,io);
+                        bond_count = bond_count + 1;
+                        bonds(1,bond_count) = bond_type;
+                        bonds(2,bond_count) = iu1;
+                        bonds(3,bond_count) = iu2;
+                    end
+                else
+                    for si = 1:l.nsite3
+                        oi = l.site3s_oi(si);
+                        bi = l.site3s_bi(si);
+                        ib = l.site3s_ibs(ir1-l.n_site5,si);
+                        io = os(oi).get_io(bi,ib);
+                        iu1 = get_iu(oi,io);
+                        oi = l.site3s_oi(si);
+                        bi = l.site3s_bi(si);
+                        ib = l.site3s_ibs(ir2-l.n_site5,si);
+                        io = os(oi).get_io(bi,ib);
+                        iu2 = get_iu(oi,io);
+                        bond_count = bond_count + 1;
+                        bonds(1,bond_count) = bond_type;
+                        bonds(2,bond_count) = iu1;
+                        bonds(3,bond_count) = iu2;
+                    end
+                end
             end
         end
     end
@@ -538,18 +679,18 @@ function compose_geo(geoFile,geoVisFile,dbox,nABAtype,os)
     for oi = 1:length(os)
         for ai = 1:length(os(oi).angles_apot)
             if os(oi).angles_status(ai) == 1
-                type = os(oi).angles_apot(ai).index;
+                angle_type = os(oi).angles_apot(ai).index;
                 iu1 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(1,ai), os(oi).angles_ibs(1,ai) ) );
                 iu2 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(2,ai), os(oi).angles_ibs(2,ai) ) );
                 iu3 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(3,ai), os(oi).angles_ibs(3,ai) ) );
                 iu4 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(4,ai), os(oi).angles_ibs(4,ai) ) );
                 angle_count = angle_count + 1;
-                angles(1,angle_count) = type;
+                angles(1,angle_count) = angle_type;
                 angles(2,angle_count) = iu1;
                 angles(3,angle_count) = iu2;
                 angles(4,angle_count) = iu3;
                 angle_count = angle_count + 1;
-                angles(1,angle_count) = type;
+                angles(1,angle_count) = angle_type;
                 angles(2,angle_count) = iu2;
                 angles(3,angle_count) = iu3;
                 angles(4,angle_count) = iu4;
@@ -557,36 +698,58 @@ function compose_geo(geoFile,geoVisFile,dbox,nABAtype,os)
         end
     end
 
+    %%% compile dihedral info
+    dihedrals = zeros(5,0);
+    dihedral_count = 0;
+    for oi = 1:length(os)
+        for di = 1:length(os(oi).dihedrals_dpot)
+            dihedral_type = os(oi).dihedrals_dpot(di).index;
+            iu1 = get_iu( oi, os(oi).get_io( os(oi).dihedrals_bis(1,di), os(oi).dihedrals_ibs(1,di) ) );
+            iu2 = get_iu( oi, os(oi).get_io( os(oi).dihedrals_bis(2,di), os(oi).dihedrals_ibs(2,di) ) );
+            iu3 = get_iu( oi, os(oi).get_io( os(oi).dihedrals_bis(3,di), os(oi).dihedrals_ibs(3,di) ) );
+            iu4 = get_iu( oi, os(oi).get_io( os(oi).dihedrals_bis(4,di), os(oi).dihedrals_ibs(4,di) ) );
+            dihedral_count = dihedral_count + 1;
+            dihedrals(1,dihedral_count) = dihedral_type;
+            dihedrals(2,dihedral_count) = iu1;
+            dihedrals(3,dihedral_count) = iu2;
+            dihedrals(4,dihedral_count) = iu3;
+            dihedrals(5,dihedral_count) = iu4;
+        end
+    end
+
     %%% write simulation geometry file
-    ars.writeGeo(geoFile,dbox,atoms,bonds,angles,masses=masses,nbondType=nABAtype(2),nangleType=nABAtype(3));
+    ars.writeGeo(geoFile,dbox,atoms,bonds,angles,dihedrals=dihedrals,masses=masses,nbondType=nABADtype(2),nangleType=nABADtype(3),ndihedralType=nABADtype(4));
 
     %%% write visualization geometry file
-    ars.writeGeo(geoVisFile,dbox,atoms_vis,bonds,angles)
+    ars.writeGeo(geoVisFile,dbox,atoms_vis,bonds,angles,dihedrals=dihedrals)
 end
 
 
 %%% write lammps input file
-function write_input(inputFile,p,linker_types,potential_types,angle_types)
-
-    %%% get counts
-    nlinker = numEntries(linker_types);
-    natomType = 2 + nlinker*2;
-    nbondType = 1 + numEntries(potential_types);
-    nangleType = numEntries(angle_types);
+function write_input(inputFile,reactFold,p,nABADtype,pots,apots,dpots,linkers,reactions)
 
     %%% calculate communication cutoff
-    U_max = 12;
-    comm_cutoff = p.r12_cut_WCA;
-    if numEntries(potential_types) > 0
-        for p_name = keys(potential_types)'
-            r12_max = potential_types(p_name).calc_separation(U_max);
-            comm_cutoff = max([comm_cutoff,r12_max]);
+    if p.comm_cutoff == 0
+        U_max = 12;
+        p.comm_cutoff = p.r12_cut_WCA;
+        if numEntries(pots) > 0
+            for p_name = keys(pots)'
+                r12_max = pots(p_name).calc_separation(U_max);
+                p.comm_cutoff = max([p.comm_cutoff,r12_max]);
+            end
         end
-    end
-    if numEntries(linker_types) > 0
-        for l_name = keys(linker_types)'
-            r12_cut = linker_types(l_name).r12_cut;
-            comm_cutoff = max([comm_cutoff,r12_cut]);
+        if numEntries(linkers) > 0
+            for l_name = keys(linkers)'
+                r12_cut = linkers(l_name).r12_cut;
+                p.comm_cutoff = max([p.comm_cutoff,r12_cut]);
+            end
+        end
+        if numEntries(reactions) > 0
+            for r_name = keys(reactions)'
+                r12_min_max = max(reactions(r_name).r12s_min);
+                r12_max_max = max(reactions(r_name).r12s_max);
+                p.comm_cutoff = max([p.comm_cutoff,r12_min_max,r12_max_max]);
+            end
         end
     end
 
@@ -606,8 +769,9 @@ function write_input(inputFile,p,linker_types,potential_types,angle_types)
         "boundary        p p p\n",...
         "atom_style      molecular\n",...
         "read_data       geometry.in &\n",...
-        "                extra/bond/per/atom 1 &\n",...
-        "                extra/special/per/atom 1\n\n"));
+        "                extra/bond/per/atom 10 &\n",...
+        "                extra/angle/per/atom 10 &\n",...
+        "                extra/special/per/atom 10\n\n"));
 
     %%% neighbor list
     fprintf(f,strcat(...
@@ -618,45 +782,78 @@ function write_input(inputFile,p,linker_types,potential_types,angle_types)
 
     %%% pairwise interactions
     fprintf(f,strcat(...
-        "pair_style      hybrid/overlay lj/cut ", ars.fstring(p.r12_cut_WCA,0,2), " zero ", ars.fstring(comm_cutoff,0,2), "\n",...
+        "pair_style      hybrid/overlay lj/cut ", ars.fstring(p.r12_cut_WCA,0,2), " zero ", ars.fstring(p.comm_cutoff,0,2), "\n",...
         "pair_coeff      * * zero\n",...
         "pair_coeff      1 1 lj/cut ", ars.fstring(p.epsilon,0,2), " ", ars.fstring(p.sigma,0,2), "\n",...
         "pair_modify     pair lj/cut shift yes\n"));
 
     %%% bonds
-    if nbondType == 1
-        fprintf(f,strcat(...
-            "bond_style      zero\n",...
-            "bond_coeff      1\n"));
-    else
-        fprintf(f,...
-            "bond_style      hybrid");
-        styles = unique(["zero",values(potential_types).style]);
-        for si = 1:length(styles)
-            fprintf(f,strcat(" ", styles{si}));
+    if nABADtype(2) > 0
+        bond_styles = unique([values(pots).style]);
+        if isscalar(bond_styles)
+            is_hybrid = false;
+            fprintf(f,strcat(...
+                "bond_style      ", bond_styles{1}, "\n"));
+        else
+            is_hybrid = true;
+            fprintf(f,...
+                "bond_style      hybrid");
+            for si = 1:length(bond_styles)
+                fprintf(f,strcat(" ", bond_styles{si}));
+            end
+            fprintf(f,"\n");
         end
-        fprintf(f,"\n");
-        for p_name = keys(potential_types)'
-            potential_types(p_name).write_potential(f);
+        for p_name = keys(pots)'
+            pots(p_name).write_potential(f,is_hybrid);
         end
-        fprintf(f,strcat(...
-            "bond_coeff      ", num2str(nbondType), " zero\n"));
     end
 
     %%% angles
-    if nangleType > 0
-        fprintf(f,...
-            "angle_style     harmonic\n");
-        for a_name = keys(angle_types)'
+    if nABADtype(3) > 0
+        angle_styles = unique([values(apots).style]);
+        if isscalar(angle_styles)
+            is_hybrid = false;
             fprintf(f,strcat(...
-                "angle_coeff     ", num2str(angle_types(a_name).index), " ", ars.fstring(angle_types(a_name).k_theta/2,0,2), " ", ars.fstring(angle_types(a_name).theta_eq,0,2), "\n"));
+                "angle_style     ", angle_styles{1}, "\n"));
+        else
+            is_hybrid = true;
+            fprintf(f,...
+                "angle_style     hybrid");
+            for si = 1:length(angle_styles)
+                fprintf(f,strcat(" ", angle_styles{si}));
+            end
+            fprintf(f,"\n");
+        end
+        for a_name = keys(apots)'
+            apots(a_name).write_potential(f,is_hybrid);
         end
     end
 
-    %%% linker group
-    if nlinker > 0
+    %%% angles
+    if nABADtype(3) > 0
+        dihedral_styles = unique([values(dpots).style]);
+        if isscalar(dihedral_styles)
+            is_hybrid = false;
+            fprintf(f,strcat(...
+                "dihedral_style  ", dihedral_styles{1}, "\n"));
+        else
+            is_hybrid = true;
+            fprintf(f,...
+                "dihedral_style  hybrid");
+            for si = 1:length(dihedral_styles)
+                fprintf(f,strcat(" ", dihedral_styles{si}));
+            end
+            fprintf(f,"\n");
+        end
+        for d_name = keys(dpots)'
+            dpots(d_name).write_potential(f,is_hybrid);
+        end
+    end
+
+    %%% sticky patch group
+    if nABADtype(1) >= 3
         fprintf(f,strcat(...
-            "group           linker type 3:", num2str(natomType), "\n"));
+            "group           stickies type 3:", num2str(nABADtype(1)), "\n"));
     end
     fprintf(f,"\n");
 
@@ -688,20 +885,38 @@ function write_input(inputFile,p,linker_types,potential_types,angle_types)
             "reset_timestep  0\n\n"));
     end
 
-    %%% reactions
-    if nlinker > 0
+    %%% linker reactions
+    if numEntries(linkers) > 0
         fprintf(f,"## Reactions\n");
-        for l_name = keys(linker_types)'
-            li = linker_types(l_name).index;
-            fix_name = strcat("linker",num2str(li));
-            r12_cut = linker_types(l_name).r12_cut;
-            bond_type = linker_types(l_name).pot_index;
-            angle_type = linker_types(l_name).apot_index;
-            theta_min = linker_types(l_name).theta_min;
-            theta_max = linker_types(l_name).theta_max;
-            write_bond_create(f,fix_name,"linker",p.react_every,1+li*2,2+li*2,r12_cut,bond_type,angle_type,theta_min,theta_max);
+        for l_name = keys(linkers)'
+            linkers(l_name).write_bond_create(f,p.react_every);
         end
         fprintf(f,"\n");
+    end
+
+    %%% reacter reactions
+    if numEntries(reactions) > 0
+        ars.createEmptyFold(reactFold);
+        fprintf(f,"## Reactions\n");
+        for r_name = keys(reactions)'
+            reactions(r_name).write_react(reactFold,pots,apots)
+            for ri = 1:reactions(r_name).nreact
+                fprintf(f,"molecule        " + string(r_name) + "_r" + string(ri) + "_pre react/" + string(r_name) + "_r" + string(ri) + "_pre.txt\n");
+                fprintf(f,"molecule        " + string(r_name) + "_r" + string(ri) + "_pst react/" + string(r_name) + "_r" + string(ri) + "_pst.txt\n");
+            end
+        end
+        fprintf(f,"fix             reactions stickies bond/react reset_mol_ids no");
+        for r_name = keys(reactions)'
+            for ri = 1:reactions(r_name).nreact
+                r12_min = reactions(r_name).r12s_min(ri);
+                r12_max = reactions(r_name).r12s_max(ri);
+                if r12_max == 0
+                    r12_max = p.comm_cutoff;
+                end
+                fprintf(f," &\n                react " + string(r_name) + "_r" + string(ri) + " stickies " + string(p.react_every) + " " + ars.fstring(r12_min,0,2) + " " + ars.fstring(r12_max,0,2) + " " + string(r_name) + "_r" + string(ri) + "_pre " + string(r_name) + "_r" + string(ri) + "_pst react/" + string(r_name) + "_r" + string(ri)  + "_map.txt");
+            end
+        end
+        fprintf(f,"\n\n");
     end
     
     %%% updates
@@ -713,7 +928,7 @@ function write_input(inputFile,p,linker_types,potential_types,angle_types)
             "compute         compB1 all bond/local dist engpot\n",...
             "compute         compB2 all property/local btype batom1 batom2\n",...
             "dump            dumpB all local ", num2str(p.dump_every), " dump_bonds.txt index c_compB1[1] c_compB1[2] c_compB2[1] c_compB2[2] c_compB2[3]\n"));
-        if nangleType > 0
+        if nABADtype(3) > 0
             fprintf(f,strcat(...
 			"compute         compA1 all angle/local theta eng\n",...
 			"compute         compA2 all property/local atype aatom1 aatom2 aatom3\n",...
@@ -733,28 +948,6 @@ function write_input(inputFile,p,linker_types,potential_types,angle_types)
     %%% finalize and close file
     fprintf(f,"\n#------- End Input -------#\n\n");
     fclose(f);
-end
-
-
-%%% write fix bond create command
-function write_bond_create(f,fix_name,group_name,react_every,atomType1,atomType2,r12_cut,bond_type,angle_type,theta_min,theta_max)
-    fprintf(f,strcat(...
-        "fix             ", fix_name, " ", group_name, " bond/create"));
-    if angle_type ~= 0
-        fprintf(f,"/angle");
-    end
-    fprintf(f,strcat(...
-        " ", num2str(react_every), " ",...
-        num2str(atomType1), " ",num2str(atomType2), " ",...
-        ars.fstring(r12_cut,0,2), " ", num2str(bond_type), " "));
-    if angle_type ~= 0 
-        fprintf(f,strcat(...
-            "atype ", num2str(angle_type), " ",...
-            "aconstrain ", num2str(theta_min), " ", num2str(theta_max), " "));
-    end
-    fprintf(f,strcat(...
-        "iparam 1 ", num2str(atomType1), " ",...
-        "jparam 1 ", num2str(atomType2), "\n"));
 end
 
 
@@ -803,3 +996,15 @@ function os = init_positions(os,p)
     end
 end
 
+
+%%% calculate origami indices of origami type
+function ois = get_ois(o_counts,o_name)
+    o_count = 0;
+    for o_name_key = keys(o_counts)'
+        if o_name_key == o_name
+            ois = o_count+1:o_count+o_counts(o_name);
+            return
+        end
+        o_count = o_count + o_counts(o_name_key);
+    end
+end

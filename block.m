@@ -22,7 +22,7 @@ classdef block
         %%% constructor
         function b = block(pattern_label,n_helix,p)
             if nargin > 0
-                [b.pattern,b.hiH] = block.setpat(pattern_label);
+                [b.pattern,b.hiH] = block.init_pat(pattern_label);
                 b.nhelix = size(b.pattern,2);
                 b.n_helix = n_helix;
                 b.R = eye(3);
@@ -83,6 +83,17 @@ classdef block
         end
 
 
+        %%% get block index from patch name
+        function ib = get_ib_patch(b,patch)
+            patch_index = find(strcmp(b.patches, patch));
+            if ~isempty(patch_index)
+                ib = b.n-b.npatch+patch_index;
+            else
+                error("Unknown patch type: " + patch(3:end) + ".")
+            end
+        end
+
+
         %%% set the positions of the block within its own coordinate system
         function r_internal = init_positions_internal(b,p)
             r_internal = zeros(3,b.n);
@@ -91,17 +102,6 @@ classdef block
                 zi = b.get_zi(ib);
                 r_internal(1:2,ib) = p.r12_helix.*b.pattern(:,hi);
                 r_internal(3,ib) = p.r12_bead.*(zi-1);
-            end
-        end
-
-
-        %%% get block index from patch name
-        function ib = get_patch_ib(b,patch)
-            patch_index = find(strcmp(b.patches, patch));
-            if ~isempty(patch_index)
-                ib = b.n-b.npatch+patch_index;
-            else
-                error("Unknown patch type: " + patch(3:end) + ".")
             end
         end
 
@@ -147,7 +147,7 @@ classdef block
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         %%% get patterns
-        function [pattern,hiHollow] = setpat(pattern_label)
+        function [pattern,hiHollow] = init_pat(pattern_label)
 
             %%% single bundle
             if pattern_label == "1HB"
