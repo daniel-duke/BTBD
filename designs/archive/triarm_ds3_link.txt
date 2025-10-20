@@ -41,7 +41,7 @@ patch LLF       Ba  0 -3.6 25
 patch LLB       Ba  0 -3.6 20
 
 %%% origami
-origami O1      6 rigid block
+origami O1      count 6
 O1 blocks       Ba Ba Bi
 O1 conn         1 CRUF 2 CLUF Cds
 O1 conn         1 CRLF 2 CLLF Cds

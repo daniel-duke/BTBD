@@ -21,7 +21,7 @@ patch L1        B1 5 0 5            % block type, x, y, z
 patch L2        B1 5 0 45           % block type, x, y, z
 
 %%% origami
-origami O1      10                  % count
+origami O1      count 10            % initialize origami
 O1 blocks       B1 B1 B1            % block type(s)
 O1 conn         1 CL 2 CR ssC       % block index + location 1 and 2, potential type
 O1 conn         2 CL 3 CR ssC       % block index + location 1 and 2, potential type

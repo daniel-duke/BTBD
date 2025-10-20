@@ -34,9 +34,9 @@ classdef dihedral_pot
 
                 %%% set equilibrium angle parameter
                 if dpot.phi_eq == 0
-                    dpot.params.d = 1;
-                elseif dpot.phi_eq == 180
                     dpot.params.d = -1;
+                elseif dpot.phi_eq == 180
+                    dpot.params.d = 1;
                 else
                     error("Equilibrium angle must be 0 or 180 for harmonic cosine dihedral.")
                 end
@@ -58,7 +58,7 @@ classdef dihedral_pot
 
             %%% cosine harmonic dihedral
             if dpot.label == "harmonic_cos"
-                U = dpot.params.k_phi*(1-dpot.params.d*cosd(phi));
+                U = dpot.params.k_phi*(1+dpot.params.d*cosd(phi));
 
             %%% quadratic harmonic dihedral
             elseif dpot.label == "harmonic_quad"

@@ -13,9 +13,9 @@ bond_pot dummy  zero 0
 bond_pot CUds   harmonic 15 10
 bond_pot CLds   harmonic 7.8 10
 bond_pot Lse    harmonic 5 10
-angle_pot CUds  180 2
-angle_pot CLds  180 4
-angle_pot Lse   180 40
+angle_pot CUds  harmonic 180 2
+angle_pot CLds  harmonic 180 4
+angle_pot Lse   harmonic 180 40
 
 %%% inert block
 block Bi        1HB 5
@@ -36,7 +36,7 @@ patch LLF       Ba  0 -3.6 25
 patch LLB       Ba  0 -3.6 20
 
 %%% origami
-origami O1      6 rigid block
+origami O1      count 6
 O1 blocks       Ba Ba Bi
 O1 conn         1 CRUF 2 CLUF CUds
 O1 conn         1 CRLF 2 CLLF CLds

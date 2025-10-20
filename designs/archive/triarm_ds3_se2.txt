@@ -10,9 +10,9 @@ r12_helix       5
 
 %%% potentials
 bond_pot Cds    harmonic 15 10
-bond_pot Lse    harmonic/shift/cut 5 10 10
-angle_pot Cds   180 2
-angle_pot Lse   180 40
+bond_pot Lse    harmonic_cut 5 10 10
+angle_pot Cds   harmonic 180 2
+angle_pot Lse   harmonic 180 40
 
 %%% inert block
 block Bi        1HB 5
@@ -41,7 +41,7 @@ patch LLF       Ba  0 -3.6 25
 patch LLB       Ba  0 -3.6 20
 
 %%% origami
-origami O1      6 rigid block
+origami O1      count 6
 O1 blocks       Ba Ba Bi
 O1 conn         1 CRUF 2 CLUF Cds
 O1 conn         1 CRLF 2 CLLF Cds

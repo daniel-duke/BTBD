@@ -1,0 +1,74 @@
+%%% parameters
+nstep           1E8
+dump_every      1E4
+dbox            300
+dt              0.04
+sigma           10
+epsilon         1
+r12_bead        5
+r12_helix       10
+
+%%% potentials
+bond_pot C      harmonic 15 10
+bond_pot L      harmonic 5 10
+angle_pot C     harmonic 180 2
+angle_pot L     harmonic 180 200
+dihedral_pot L  harmonic_cos 0 60
+
+%%% inert block
+block Bi        1HB 11
+patch CRUB      Bi  3.6  3.6 10
+patch CRLB      Bi  3.6 -3.6 10
+patch CRUF      Bi  3.6  3.6 0
+patch CRLF      Bi  3.6 -3.6 0
+patch CLUB      Bi -3.6  3.6 10
+patch CLLB      Bi -3.6 -3.6 10
+patch CLUF      Bi -3.6  3.6 0
+patch CLLF      Bi -3.6 -3.6 0
+patch CRUmB     Bi  3.6  1.2 10
+patch CRLmB     Bi  3.6 -1.2 10
+patch CRUmF     Bi  3.6  1.2 0
+patch CRLmF     Bi  3.6 -1.2 0
+patch CLUmB     Bi -3.6  1.2 10
+patch CLLmB     Bi -3.6 -1.2 10
+patch CLUmF     Bi -3.6  1.2 0
+patch CLLmF     Bi -3.6 -1.2 0
+
+%%% active block
+block Ba        copy Bi
+patch LMF       Ba 0 0 55
+patch LMB       Ba 0 0 50
+patch LUF       Ba 0 5 55
+
+%%% origami
+origami O1      count 6
+O1 blocks       Ba Ba Bi
+O1 conn         1 CRUF 2 CLUF C
+O1 conn         1 CRLF 2 CLLF C
+O1 conn         2 CRUF 3 CLUF C
+O1 conn         2 CRLF 3 CLLF C
+O1 conn         3 CRUF 1 CLUF C
+O1 conn         3 CRLF 1 CLLF C
+O1 conn         1 CRUmF 2 CLUmF C
+O1 conn         1 CRLmF 2 CLLmF C
+O1 conn         2 CRUmF 3 CLUmF C
+O1 conn         2 CRLmF 3 CLLmF C
+O1 conn         3 CRUmF 1 CLUmF C
+O1 conn         3 CRLmF 1 CLLmF C
+O1 angle        1 CRUB CRUF 2 CLUF CLUB C theta_init 150 axis_init 0 1 0
+O1 angle        2 CRUB CRUF 3 CLUF CLUB C theta_init 150 axis_init 0 1 0
+O1 angle        3 CRUB CRUF 1 CLUF CLUB C theta_init 150 axis_init 0 1 0
+O1 angle        1 CRLB CRLF 2 CLLF CLLB C theta_init 150 axis_init 0 1 0
+O1 angle        2 CRLB CRLF 3 CLLF CLLB C theta_init 150 axis_init 0 1 0
+O1 angle        3 CRLB CRLF 1 CLLF CLLB C theta_init 150 axis_init 0 1 0
+O1 angle        1 CRUmB CRUmF 2 CLUmF CLUmB C theta_init 150 axis_init 0 1 0
+O1 angle        2 CRUmB CRUmF 3 CLUmF CLUmB C theta_init 150 axis_init 0 1 0
+O1 angle        3 CRUmB CRUmF 1 CLUmF CLUmB C theta_init 150 axis_init 0 1 0
+O1 angle        1 CRLmB CRLmF 2 CLLmF CLLmB C theta_init 150 axis_init 0 1 0
+O1 angle        2 CRLmB CRLmF 3 CLLmF CLLmB C theta_init 150 axis_init 0 1 0
+O1 angle        3 CRLmB CRLmF 1 CLLmF CLLmB C theta_init 150 axis_init 0 1 0
+
+%%% reactions
+reaction R1     single_stiffen_twist 5 L L 170 L 30
+R1 5p           O1 1 LMF LMB LUF
+R1 3p           O1 2 LMF LMB LUF

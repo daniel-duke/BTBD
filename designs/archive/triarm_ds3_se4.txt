@@ -1,8 +1,8 @@
 %%% parameters
 nstep           1E6
 dump_every      1E4
-dbox            100
-dt              0.04
+dbox            200
+dt              0.02
 sigma           10
 epsilon         1
 r12_bead        5
@@ -14,7 +14,7 @@ bond_pot Lse    harmonic_cut 5 10 10
 angle_pot Cds   harmonic 180 2
 angle_pot LseH  harmonic 180 1
 angle_pot Lse   harmonic 180 40
-dihedral_pot C  harmonic_cos 0 1
+dihedral_pot C  harmonic_cos 0 10
 
 %%% inert block
 block Bi        1HB 5
@@ -47,7 +47,7 @@ patch LLLF      Ba  -3.6 -3.6 25
 patch LLLB      Ba  -3.6 -3.6 20
 
 %%% origami
-origami O1      1 rigid block
+origami O1      count 6
 O1 blocks       Ba Ba Bi
 O1 conn         1 CRUF 2 CLUF Cds
 O1 conn         1 CRLF 2 CLLF Cds
@@ -74,8 +74,13 @@ O1 angle        1 CRLmB CRLmF 2 CLLmF CLLmB Cds theta_init 150 axis_init 0 1 0
 O1 angle        2 CRLmB CRLmF 3 CLLmF CLLmB Cds theta_init 150 axis_init 0 1 0
 O1 angle        3 CRLmB CRLmF 1 CLLmF CLLmB Cds theta_init 150 axis_init 0 1 0
 O1 dihedral     1 CRUB CRUF 2 CLUF CLUB C
+O1 dihedral     2 CRUB CRUF 3 CLUF CLUB C
+O1 dihedral     3 CRUB CRUF 1 CLUF CLUB C
+O1 dihedral     1 CRLB CRLF 2 CLLF CLLB C
+O1 dihedral     2 CRLB CRLF 3 CLLF CLLB C
+O1 dihedral     3 CRLB CRLF 1 CLLF CLLB C
 
 %%% reactions
-reaction R1     quad_stiffen_help 6 Lse LseH Lse 90
+reaction R1     quad_stiffen_help 5 Lse LseH Lse 120
 R1 5p           O1 1 LRUF LRUB LRLF LRLB LLLF LLLB LLUF LLUB
 R1 3p           O1 2 LLUF LLUB LLLF LLLB LRLF LRLB LRUF LRUB

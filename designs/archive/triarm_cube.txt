@@ -14,11 +14,11 @@ bond_pot CUmds  harmonic 12.6 10
 bond_pot CLmds  harmonic 10.2 10
 bond_pot CLds   harmonic 7.8 10
 bond_pot Lse    harmonic 5 10
-angle_pot CUds  180 2
-angle_pot CUmds 180 2.7
-angle_pot CLmds 180 3.3
-angle_pot CLds  180 4
-angle_pot Lse   180 40
+angle_pot CUds  harmonic 180 2
+angle_pot CUmds harmonic 180 2.7
+angle_pot CLmds harmonic 180 3.3
+angle_pot CLds  harmonic 180 4
+angle_pot Lse   harmonic 180 40
 
 %%% block
 block Ba        1HB 5
@@ -44,7 +44,7 @@ patch LLF       Ba  0 -3.6 25
 patch LLB       Ba  0 -3.6 20
 
 %%% origami
-origami O1      4 rigid block
+origami O1      count 4
 O1 blocks       Ba Ba Ba
 O1 conn         1 CRUF 2 CLUF CUds
 O1 conn         1 CRLF 2 CLLF CLds
@@ -78,7 +78,7 @@ O1 angle        2 CRLmB CRLmF 3 CLLmF CLLmB CUmds theta_init 135 axis_init 1 1 0
 O1 angle        3 CRLmB CRLmF 1 CLLmF CLLmB CLmds theta_init 135 axis_init 1 1 0
 
 %%% origami
-origami O2      4 copy O1
+origami O2      copy O1 count 4
 
 %%% linkers
 linker L1       Lse 6

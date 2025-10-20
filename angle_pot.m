@@ -43,7 +43,7 @@ classdef angle_pot
         function U = calc_energy(apot,theta,theta_ref)
             arguments
                 apot; theta
-                theta_ref double = apot.theta_eq
+                theta_ref = apot.theta_eq
             end
 
             %%% harmonic angle

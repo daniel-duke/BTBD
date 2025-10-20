@@ -18,10 +18,11 @@ function writeGeo(geoFile,dbox,atoms,bonds,angles,options)
     end
 
     %%% input
-    % atoms - 5xnatom array of molecule IDs, atom types, and positions
-    % bonds - 3xnbond array of bond types and bonded atom IDs
-    % angles - 4xnangle array of angle types and angled atom IDs
-    % dihedrals - 4xndihedral array of dihedral types and dihedraled atom IDs
+    % atoms - 5 x natom array of molecule IDs, atom types, and positions
+    % bonds - 3 x nbond array of bond types and bonded atom IDs
+    % angles - 4 xnangle array of angle types and angled atom IDs
+    % dihedrals -  4 x ndihedral array of dihedral types and dihedraled atom IDs
+    % charges - 1 x natom array of atom charges
 
     %%% get count for objects
     natom = size(atoms,2);
@@ -49,6 +50,12 @@ function writeGeo(geoFile,dbox,atoms,bonds,angles,options)
         masses = ones(1,natomType);
     else
         masses = options.masses;
+    end
+    if options.charges == "none"
+        charges = zeros(0,natom);
+    else
+        charges = str2double(options.charges);
+        len_charge = floor(log10(max([charges,1])))+1;
     end
 
     %%% deal with dihedrals
@@ -116,7 +123,12 @@ function writeGeo(geoFile,dbox,atoms,bonds,angles,options)
         fprintf(f,strcat("\t",...
             ars.fstring(i,len_natom,0,"L"), " ",...
             ars.fstring(atoms(1,i),len_nmolecule,0,"L"), " ",...
-            ars.fstring(atoms(2,i),len_natomType,0,"L"), "  ",...
+            ars.fstring(atoms(2,i),len_natomType,0,"L"), " "));
+        if ~isempty(charges)
+        fprintf(f,strcat(...
+            ars.fstring(charges(i),len_charge+6,4,"R"), " "));
+        end
+        fprintf(f,strcat(" ",...
             ars.fstring(atoms(3,i),len_dbox+4,2,"R"), " ",...
             ars.fstring(atoms(4,i),len_dbox+4,2,"R"), " ",...
             ars.fstring(atoms(5,i),len_dbox+4,2,"R"), "\n"));

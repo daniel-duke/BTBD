@@ -1,6 +1,7 @@
 %%% origami class for BTBD
 classdef origami
     properties
+        label               % origami name
         rigid               % origami or block
         bs                  % block objects
         nconn               % number of connections
@@ -24,31 +25,32 @@ classdef origami
         get_bi              % map io to bi
         get_ib              % map io to ib
         get_io              % map bi and ib to io
-        index               % origami type, for visualization
     end
 
     methods
         %%% constructor
-        function o = origami(index)
-            o.rigid = "block";
-            o.bs = [];
-            o.nconn = 0;
-            o.conns_bis = [];
-            o.conns_ibs = [];
-            o.conns_pot = bond_pot.empty;
-            o.conns_status = [];
-            o.nangle = 0;
-            o.angles_bis = [];
-            o.angles_ibs = [];
-            o.angles_apot = angle_pot.empty;
-            o.angles_theta_init = [];
-            o.angles_axis_init = [];
-            o.angles_status = [];
-            o.ndihedral = 0;
-            o.dihedrals_bis = [];
-            o.dihedrals_ibs = [];
-            o.dihedrals_dpot = dihedral_pot.empty;
-            o.index = index;
+        function o = origami(label)
+            if nargin > 0
+                o.label = label;
+                o.rigid = "block";
+                o.bs = [];
+                o.nconn = 0;
+                o.conns_bis = [];
+                o.conns_ibs = [];
+                o.conns_pot = bond_pot.empty;
+                o.conns_status = [];
+                o.nangle = 0;
+                o.angles_bis = [];
+                o.angles_ibs = [];
+                o.angles_apot = angle_pot.empty;
+                o.angles_theta_init = [];
+                o.angles_axis_init = [];
+                o.angles_status = [];
+                o.ndihedral = 0;
+                o.dihedrals_bis = [];
+                o.dihedrals_ibs = [];
+                o.dihedrals_dpot = dihedral_pot.empty;
+            end
         end
 
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -119,13 +121,6 @@ classdef origami
                     get_io(bi,ib) = io;
                 end
             end
-        end
-
-
-        %%% check if bead is patch
-        function result = is_patch(o,io)
-            b = o.bs(o.get_bi(io));
-            result = o.get_ib(io) > b.n_real;
         end
 
 
