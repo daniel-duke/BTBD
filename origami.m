@@ -95,14 +95,14 @@ classdef origami
 
 
         %%% add dihedral to origami
-        function o = add_dihedral(o,bi1,patch11,patch12,bi2,patch21,patch22,dpot)
+        function o = add_dihedral(o,bi1,patch1,bi2,patch2,bi3,patch3,bi4,patch4,dpot)
             o.ndihedral = o.ndihedral + 1;
-            o.dihedrals_bis(:,o.ndihedral) = [bi1;bi1;bi2;bi2];
-            ib11 = o.bs(bi1).get_ib_patch(patch11);
-            ib12 = o.bs(bi1).get_ib_patch(patch12);
-            ib21 = o.bs(bi2).get_ib_patch(patch21);
-            ib22 = o.bs(bi2).get_ib_patch(patch22);
-            o.dihedrals_ibs(:,o.ndihedral) = [ib11;ib12;ib21;ib22];
+            o.dihedrals_bis(:,o.ndihedral) = [bi1;bi2;bi3;bi4];
+            ib1 = o.bs(bi1).get_ib_patch(patch1);
+            ib2 = o.bs(bi2).get_ib_patch(patch2);
+            ib3 = o.bs(bi3).get_ib_patch(patch3);
+            ib4 = o.bs(bi4).get_ib_patch(patch4);
+            o.dihedrals_ibs(:,o.ndihedral) = [ib1;ib2;ib3;ib4];
             o.dihedrals_dpot(o.ndihedral) = dpot;
         end
 

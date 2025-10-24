@@ -27,14 +27,12 @@ classdef reaction
 
     methods
         %%% constructor
-        function r = reaction(label,style,params,ti_start)
+        function r = reaction(label,style,params_input,ti_start)
             if nargin > 0
                 r.label = label;
                 r.style = style;
-                r.params = params;
                 r.ti_start = ti_start;
-                [r.nti,r.nsubreact,tis_internal_site5,tis_internal_site3,r.is_charged] = reaction.init(style);
-                [r.r12s_max,r.r12s_min] = reaction.init_r12s(style,params);
+                [tis_internal_site5,tis_internal_site3,r.is_charged,r.params,r.r12s_max,r.r12s_min,r.nti,r.nsubreact] = reaction.init(style,params_input);
                 r = r.set_tis(tis_internal_site5,tis_internal_site3);
                 r = r.set_bonds_init();
                 r.nsite5 = 0;
@@ -437,6 +435,7 @@ classdef reaction
             end
         end
 
+
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         %%% Define Styles %%%%%%%%%%%%%%%%%%%%%%%%%%%%
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -450,8 +449,8 @@ classdef reaction
                 %%% bond
                 case "single"
     
-                    %%% put names to parameters
-                    bond_type = pots(r.params{2}).index;
+                    %%% get potential type
+                    bond_type = pots(r.params.pot_name).index;
     
                     %%% initiators
                     initiators = [1 2];
@@ -469,8 +468,8 @@ classdef reaction
                 %%% breakable bond
                 case "single_rev"
     
-                    %%% put names to parameters
-                    bond_type = pots(r.params{3}).index;
+                    %%% get potential type
+                    bond_type = pots(r.params.pot_name).index;
 
                     %%% initiators
                     initiators = [1 2];
@@ -493,9 +492,9 @@ classdef reaction
                 %%% bond with angles
                 case "single_stiff"
     
-                    %%% put names to parameters
-                    bond_type = pots(r.params{2}).index;
-                    angle_type = apots(r.params{3}).index;
+                    %%% get potential types
+                    bond_type = pots(r.params.pot_name).index;
+                    angle_type = apots(r.params.apot_name).index;
     
                     %%% initiators
                     initiators = [1 3];
@@ -513,12 +512,13 @@ classdef reaction
                     r.write_mol_file(reactFold,1,0,bonds_pst,angles_pst)
                     write_map_file(r,reactFold,1,initiators)
 
+
                 %%% breakable bond with angles
                 case "single_stiff_rev"
     
-                    %%% put names to parameters
-                    bond_type = pots(r.params{3}).index;
-                    angle_type = apots(r.params{4}).index;
+                    %%% get potential types
+                    bond_type = pots(r.params.pot_name).index;
+                    angle_type = apots(r.params.apot_name).index;
 
                     %%% initiators
                     initiators = [1 3];
@@ -541,13 +541,13 @@ classdef reaction
                     r.write_mol_file(reactFold,2,0,r.bonds_init)
                     write_map_file(r,reactFold,2,initiators)
 
-                %%% bond with angles added later
+
+                %%% bond, then angles
                 case "single_stiffen"
     
-                    %%% put names to parameters
-                    bond_type = pots(r.params{2}).index;
-                    angle_type = apots(r.params{3}).index;
-                    theta_min = str2double(r.params{4});
+                    %%% get potential types
+                    bond_type = pots(r.params.pot_name).index;
+                    angle_type = apots(r.params.apot_name).index;
 
                     %%% initiators
                     initiators = [1 3];
@@ -566,21 +566,21 @@ classdef reaction
                                   angle_type 1 3 4];
 
                     %%% set angle constraints
-                    acons = [2 1 3 theta_min 180;
-                             1 3 4 theta_min 180];
+                    acons = [2 1 3 r.params.theta_min 180;
+                             1 3 4 r.params.theta_min 180];
 
                     %%% write files (angle creation)
                     r.write_mol_file(reactFold,2,1,bonds_pst)
                     r.write_mol_file(reactFold,2,0,bonds_pst,angles_pst)
                     write_map_file(r,reactFold,2,initiators,acons)
 
-                %%% breakable bond with angles added later
+
+                %%% breakable bond, then angles
                 case "single_stiffen_rev"
     
-                    %%% put names to parameters
-                    bond_type = pots(r.params{3}).index;
-                    angle_type = apots(r.params{4}).index;
-                    theta_min = str2double(r.params{5});
+                    %%% get potential types
+                    bond_type = pots(r.params.pot_name).index;
+                    angle_type = apots(r.params.apot_name).index;
 
                     %%% initiators
                     initiators = [1 3];
@@ -599,8 +599,8 @@ classdef reaction
                                   angle_type 1 3 4];
 
                     %%% set angle constraints
-                    acons = [2 1 3 theta_min 180;
-                             1 3 4 theta_min 180];
+                    acons = [2 1 3 r.params.theta_min 180;
+                             1 3 4 r.params.theta_min 180];
 
                     %%% write files (angle creation)
                     r.write_mol_file(reactFold,2,1,bonds_pst)
@@ -612,15 +612,14 @@ classdef reaction
                     r.write_mol_file(reactFold,3,0,r.bonds_init)
                     write_map_file(r,reactFold,3,initiators)
 
-                %%% bond with angles and dihedrals added later
+
+                %%% bond, then angles, then dihedral
                 case "single_stiffen_twist"
     
-                    %%% put names to parameters
-                    bond_type = pots(r.params{2}).index;
-                    angle_type = apots(r.params{3}).index;
-                    theta_min = str2double(r.params{4});
-                    dihedral_type = dpots(r.params{5}).index;
-                    phi_max = str2double(r.params{6});
+                    %%% get potential types
+                    bond_type = pots(r.params.pot_name).index;
+                    angle_type = apots(r.params.apot_name).index;
+                    dihedral_type = dpots(r.params.dpot_name).index;
 
                     %%% initiators
                     initiators = [1 4];
@@ -643,8 +642,8 @@ classdef reaction
                                   angle_type 1 4 5];
 
                     %%% set angle constraints
-                    acons = [2 1 4 theta_min 180;
-                             1 4 5 theta_min 180];
+                    acons = [2 1 4 r.params.theta_min 180;
+                             1 4 5 r.params.theta_min 180];
 
                     %%% define charges
                     charge_pre = 1;
@@ -659,7 +658,7 @@ classdef reaction
                     dihedrals_pst = [dihedral_type 3 1 4 6];
 
                     %%% set angle constraints
-                    dcons = [3 1 4 6 -phi_max phi_max];
+                    dcons = [3 1 4 6 -r.params.phi_max r.params.phi_max];
 
                     %%% define charges
                     charge_pre = 2;
@@ -670,11 +669,140 @@ classdef reaction
                     r.write_mol_file(reactFold,3,0,bonds_pst,angles_pst,dihedrals_pst,charge=charge_pst,initiators=initiators)
                     write_map_file(r,reactFold,3,initiators,acons,dcons,charge=charge_pre)
 
+
+                %%% bond with weak angles, then stiff angles, then dihedral
+                case "single_stiffen2x_twist"
+    
+                    %%% get potential types
+                    bond_type = pots(r.params.pot_name).index;
+                    angle1_type = apots(r.params.apot1_name).index;
+                    angle2_type = apots(r.params.apot2_name).index;
+                    dihedral_type = dpots(r.params.dpot_name).index;
+
+                    %%% initiators
+                    initiators = [1 4];
+    
+                    %%% set post-reaction bonds
+                    bonds_pst = [r.bonds_init;
+                                 bond_type 1 4];
+
+                    %%% set post-reaction angles
+                    angles1_pst = [angle1_type 2 1 4;
+                                   angle1_type 1 4 5];
+    
+                    %%% define charges
+                    charge_pre = 0;
+                    charge_pst = 1;
+    
+                    %%% write files (bond and weak angle creation)
+                    r.write_mol_file(reactFold,1,1,r.bonds_init,charge=charge_pre,initiators=initiators)
+                    r.write_mol_file(reactFold,1,0,bonds_pst,angles1_pst,charge=charge_pst,initiators=initiators)
+                    write_map_file(r,reactFold,1,initiators,charge=charge_pre)
+
+                    %%% set post-reaction angles
+                    angles2_pst = [angle2_type 2 1 4;
+                                   angle2_type 1 4 5];
+
+                    %%% set angle constraints
+                    acons = [2 1 4 r.params.theta_min 180;
+                             1 4 5 r.params.theta_min 180];
+
+                    %%% define charges
+                    charge_pre = 1;
+                    charge_pst = 2;
+
+                    %%% write files (stiff angle creation)
+                    r.write_mol_file(reactFold,2,1,bonds_pst,charge=charge_pre,initiators=initiators)
+                    r.write_mol_file(reactFold,2,0,bonds_pst,angles2_pst,charge=charge_pst,initiators=initiators)
+                    write_map_file(r,reactFold,2,initiators,acons,charge=charge_pre)
+
+                    %%% set post-reaction dihedrals
+                    dihedrals_pst = [dihedral_type 3 1 4 6];
+
+                    %%% set angle constraints
+                    dcons = [3 1 4 6 -r.params.phi_max r.params.phi_max];
+
+                    %%% define charges
+                    charge_pre = 2;
+                    charge_pst = 3;
+
+                    %%% write files (dihedral creation)
+                    r.write_mol_file(reactFold,3,1,bonds_pst,angles2_pst,charge=charge_pre,initiators=initiators)
+                    r.write_mol_file(reactFold,3,0,bonds_pst,angles2_pst,dihedrals_pst,charge=charge_pst,initiators=initiators)
+                    write_map_file(r,reactFold,3,initiators,acons,dcons,charge=charge_pre)
+
+
+                %%% bond with weak angles, then stiff angles with weak dihedral, then stiff dihedral
+                case "single_stiffen2x_twist2x"
+    
+                    %%% get potential types
+                    bond_type = pots(r.params.pot_name).index;
+                    angle1_type = apots(r.params.apot1_name).index;
+                    angle2_type = apots(r.params.apot2_name).index;
+                    dihedral1_type = dpots(r.params.dpot1_name).index;
+                    dihedral2_type = dpots(r.params.dpot2_name).index;
+
+                    %%% initiators
+                    initiators = [1 4];
+    
+                    %%% set post-reaction bonds
+                    bonds_pst = [r.bonds_init;
+                                 bond_type 1 4];
+
+                    %%% set post-reaction angles
+                    angles1_pst = [angle1_type 2 1 4;
+                                   angle1_type 1 4 5];
+    
+                    %%% define charges
+                    charge_pre = 0;
+                    charge_pst = 1;
+    
+                    %%% write files (bond and weak angle creation)
+                    r.write_mol_file(reactFold,1,1,r.bonds_init,charge=charge_pre,initiators=initiators)
+                    r.write_mol_file(reactFold,1,0,bonds_pst,angles1_pst,charge=charge_pst,initiators=initiators)
+                    write_map_file(r,reactFold,1,initiators,charge=charge_pre)
+
+                    %%% set post-reaction angles
+                    angles2_pst = [angle2_type 2 1 4;
+                                   angle2_type 1 4 5];
+
+                    %%% set post-reaction dihedrals
+                    dihedrals1_pst = [dihedral1_type 3 1 4 6];
+
+                    %%% set angle constraints
+                    acons = [2 1 4 r.params.theta_min 180;
+                             1 4 5 r.params.theta_min 180];
+
+                    %%% define charges
+                    charge_pre = 1;
+                    charge_pst = 2;
+
+                    %%% write files (stiff angle and weak dihedral creation)
+                    r.write_mol_file(reactFold,2,1,bonds_pst,charge=charge_pre,initiators=initiators)
+                    r.write_mol_file(reactFold,2,0,bonds_pst,angles2_pst,dihedrals1_pst,charge=charge_pst,initiators=initiators)
+                    write_map_file(r,reactFold,2,initiators,acons,charge=charge_pre)
+
+                    %%% set post-reaction dihedrals
+                    dihedrals2_pst = [dihedral2_type 3 1 4 6];
+
+                    %%% set angle constraints
+                    dcons = [3 1 4 6 -r.params.phi_max r.params.phi_max];
+
+                    %%% define charges
+                    charge_pre = 2;
+                    charge_pst = 3;
+
+                    %%% write files (stiff,dihedral creation)
+                    r.write_mol_file(reactFold,3,1,bonds_pst,angles2_pst,dihedrals1_pst,charge=charge_pre,initiators=initiators)
+                    r.write_mol_file(reactFold,3,0,bonds_pst,angles2_pst,dihedrals2_pst,charge=charge_pst,initiators=initiators)
+                    write_map_file(r,reactFold,3,initiators,acons,dcons,charge=charge_pre)
+
+
                 %%% two bonds
                 case "double"
     
-                    %%% put names to parameters
-                    bond_type = pots(r.params{2}).index;
+                    %%% get potential type
+                    bond_type = pots(r.params.pot_name).index;
  
                     %%% set post-reaction bonds
                     bonds_pst = [r.bonds_init;
@@ -697,13 +825,13 @@ classdef reaction
                     r.write_mol_file(reactFold,2,0,bonds_pst)
                     write_map_file(r,reactFold,2,initiators)
                 
-                %%% two bonds with angles added later
+
+                %%% two bonds, then angles
                 case "double_stiffen"
     
-                    %%% put names to parameters
-                    bond_type = pots(r.params{2}).index;
-                    angle_type = apots(r.params{3}).index;
-                    theta_min = str2double(r.params{4});
+                    %%% get potential types
+                    bond_type = pots(r.params.pot_name).index;
+                    angle_type = apots(r.params.apot_name).index;
  
                     %%% set post-reaction bonds
                     bonds_pst = [r.bonds_init;
@@ -733,21 +861,22 @@ classdef reaction
                                   angle_type 3 7 8];
 
                     %%% set angle constraints
-                    acons = [2 1 5 theta_min 180;
-                             1 5 6 theta_min 180;
-                             4 3 7 theta_min 180;
-                             3 7 8 theta_min 180];
+                    acons = [2 1 5 r.params.theta_min 180;
+                             1 5 6 r.params.theta_min 180;
+                             4 3 7 r.params.theta_min 180;
+                             3 7 8 r.params.theta_min 180];
 
                     %%% write files (angle creation)
                     r.write_mol_file(reactFold,3,1,bonds_pst)
                     r.write_mol_file(reactFold,3,0,bonds_pst,angles_pst)
                     write_map_file(r,reactFold,3,initiators,acons)
 
+
                 %%% four bonds
                 case "quad"
     
-                    %%% put names to parameters
-                    bond_type = pots(r.params{2}).index;
+                    %%% get potential type
+                    bond_type = pots(r.params.pot_name).index;
  
                     %%% set post-reaction bonds
                     bonds_pst = [r.bonds_init;
@@ -788,13 +917,13 @@ classdef reaction
                     r.write_mol_file(reactFold,4,0,bonds_pst)
                     write_map_file(r,reactFold,4,initiators)
 
-                %%% four bonds with angles added later
+
+                %%% four bonds, then angles
                 case "quad_stiffen"
     
-                    %%% put names to parameters
-                    bond_type = pots(r.params{2}).index;
-                    angle_type = apots(r.params{3}).index;
-                    theta_min = str2double(r.params{4});
+                    %%% get potential types
+                    bond_type = pots(r.params.pot_name).index;
+                    angle_type = apots(r.params.apot_name).index;
  
                     %%% set post-reaction bonds
                     bonds_pst = [r.bonds_init;
@@ -837,37 +966,37 @@ classdef reaction
 
                     %%% set post-reaction angles
                     angles_pst = [angle_type 2 1 9;
-                                  angle_type 1 9 10;
-                                  angle_type 4 3 11;
-                                  angle_type 3 11 12;
-                                  angle_type 6 5 13;
-                                  angle_type 5 13 14;
-                                  angle_type 8 7 15;
-                                  angle_type 7 15 16];
+                                   angle_type 1 9  10;
+                                   angle_type 4 3  11;
+                                   angle_type 3 11 12;
+                                   angle_type 6 5  13;
+                                   angle_type 5 13 14;
+                                   angle_type 8 7  15;
+                                   angle_type 7 15 16];
 
                     %%% set angle constraints
-                    acons = [2 1 9   theta_min 180;
-                             1 9 10  theta_min 180;
-                             4 3 11  theta_min 180;
-                             3 11 12 theta_min 180
-                             6 5 13  theta_min 180;
-                             5 13 14 theta_min 180;
-                             8 7 15  theta_min 180;
-                             7 15 16 theta_min 180];
+                    acons = [2 1  9  r.params.theta_min 180;
+                             1 9  10 r.params.theta_min 180;
+                             4 3  11 r.params.theta_min 180;
+                             3 11 12 r.params.theta_min 180;
+                             6 5  13 r.params.theta_min 180;
+                             5 13 14 r.params.theta_min 180;
+                             8 7  15 r.params.theta_min 180;
+                             7 15 16 r.params.theta_min 180];
 
                     %%% write files (angle creation)
                     r.write_mol_file(reactFold,5,1,bonds_pst)
                     r.write_mol_file(reactFold,5,0,bonds_pst,angles_pst)
                     write_map_file(r,reactFold,5,initiators,acons)
 
-                %%% four bonds with angles added later
-                case "quad_stiffen_help"
+
+                %%% four bonds with weak angles, then stiff angles
+                case "quad_stiffen2x"
     
-                    %%% put names to parameters
-                    bond_type = pots(r.params{2}).index;
-                    angle_type_H = apots(r.params{3}).index;
-                    angle_type = apots(r.params{4}).index;
-                    theta_min = str2double(r.params{5});
+                    %%% get potential types
+                    bond_type = pots(r.params.pot_name).index;
+                    angle1_type = apots(r.params.apot1_name).index;
+                    angle2_type = apots(r.params.apot2_name).index;
  
                     %%% set post-reaction bonds
                     bonds_pst = [r.bonds_init;
@@ -877,21 +1006,21 @@ classdef reaction
                                  bond_type 7 15];
 
                     %%% set post-reaction angles
-                    angles_H_pst = [angle_type_H 2 1 9;
-                                    angle_type_H 1 9 10;
-                                    angle_type_H 4 3 11;
-                                    angle_type_H 3 11 12;
-                                    angle_type_H 6 5 13;
-                                    angle_type_H 5 13 14;
-                                    angle_type_H 8 7 15;
-                                    angle_type_H 7 15 16];
+                    angles1_pst = [angle1_type 2 1  9;
+                                   angle1_type 1 9  10;
+                                   angle1_type 4 3  11;
+                                   angle1_type 3 11 12;
+                                   angle1_type 6 5  13;
+                                   angle1_type 5 13 14;
+                                   angle1_type 8 7  15;
+                                   angle1_type 7 15 16];
 
                     %%% initiators
                     initiators = [1 9];
     
                     %%% write files (first pair init)
                     r.write_mol_file(reactFold,1,1,r.bonds_init)
-                    r.write_mol_file(reactFold,1,0,bonds_pst,angles_H_pst)
+                    r.write_mol_file(reactFold,1,0,bonds_pst,angles1_pst)
                     write_map_file(r,reactFold,1,initiators)
 
                     %%% initiators
@@ -899,7 +1028,7 @@ classdef reaction
     
                     %%% write files (second pair init)
                     r.write_mol_file(reactFold,2,1,r.bonds_init)
-                    r.write_mol_file(reactFold,2,0,bonds_pst,angles_H_pst)
+                    r.write_mol_file(reactFold,2,0,bonds_pst,angles1_pst)
                     write_map_file(r,reactFold,2,initiators)
 
                     %%% initiators
@@ -907,7 +1036,7 @@ classdef reaction
     
                     %%% write files (third pair init)
                     r.write_mol_file(reactFold,3,1,r.bonds_init)
-                    r.write_mol_file(reactFold,3,0,bonds_pst,angles_H_pst)
+                    r.write_mol_file(reactFold,3,0,bonds_pst,angles1_pst)
                     write_map_file(r,reactFold,3,initiators)
 
                     %%% initiators
@@ -915,32 +1044,32 @@ classdef reaction
     
                     %%% write files (fourth pair init)
                     r.write_mol_file(reactFold,4,1,r.bonds_init)
-                    r.write_mol_file(reactFold,4,0,bonds_pst,angles_H_pst)
+                    r.write_mol_file(reactFold,4,0,bonds_pst,angles1_pst)
                     write_map_file(r,reactFold,4,initiators)
 
                     %%% set post-reaction angles
-                    angles_pst = [angle_type 2 1 9;
-                                  angle_type 1 9 10;
-                                  angle_type 4 3 11;
-                                  angle_type 3 11 12;
-                                  angle_type 6 5 13;
-                                  angle_type 5 13 14;
-                                  angle_type 8 7 15;
-                                  angle_type 7 15 16];
+                    angles2_pst = [angle2_type 2 1  9;
+                                   angle2_type 1 9  10;
+                                   angle2_type 4 3  11;
+                                   angle2_type 3 11 12;
+                                   angle2_type 6 5  13;
+                                   angle2_type 5 13 14;
+                                   angle2_type 8 7  15;
+                                   angle2_type 7 15 16];
 
                     %%% set angle constraints
-                    acons = [2 1 9   theta_min 180;
-                             1 9 10  theta_min 180;
-                             4 3 11  theta_min 180;
-                             3 11 12 theta_min 180
-                             6 5 13  theta_min 180;
-                             5 13 14 theta_min 180;
-                             8 7 15  theta_min 180;
-                             7 15 16 theta_min 180];
+                    acons = [2 1  9  r.params.theta_min 180;
+                             1 9  10 r.params.theta_min 180;
+                             4 3  11 r.params.theta_min 180;
+                             3 11 12 r.params.theta_min 180;
+                             6 5  13 r.params.theta_min 180;
+                             5 13 14 r.params.theta_min 180;
+                             8 7  15 r.params.theta_min 180;
+                             7 15 16 r.params.theta_min 180];
 
                     %%% write files (angle stiffening)
                     r.write_mol_file(reactFold,5,1,bonds_pst)
-                    r.write_mol_file(reactFold,5,0,bonds_pst,angles_pst)
+                    r.write_mol_file(reactFold,5,0,bonds_pst,angles2_pst)
                     write_map_file(r,reactFold,5,initiators,acons)
 
                 %%% error
@@ -957,7 +1086,7 @@ classdef reaction
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         %%% initialize reaction parameters based on style
-        function [nti,nsubreact,tis_site5,tis_site3,is_charged] = init(style)
+        function [tis_site5,tis_site3,is_charged,params,r12s_max,r12s_min,nti,nsubreact] = init(style,params_input)
 
             %%% no charge by default
             is_charged = 0;
@@ -967,185 +1096,283 @@ classdef reaction
 
                 %%% bond
                 case "single"
-                    nti = 2;
-                    nsubreact = 1;
+
+                    %%% atom types
                     tis_site5 = 1;
                     tis_site3 = 2;
+
+                    %%% parameter names
+                    reaction.check_nparam(params_input,2)
+                    r12_max = str2double(params_input{1});
+                    params.pot_name = params_input{2};
+
+                    %%% cutoff distances
+                    r12s_max = r12_max;
+                    r12s_min = 0;
+
 
                 %%% breakable bond
                 case "single_rev"
-                    nti = 2;
-                    nsubreact = 2;
+
+                    %%% atom types
                     tis_site5 = 1;
                     tis_site3 = 2;
 
+                    %%% parameter names
+                    reaction.check_nparam(params_input,3)
+                    r12_max_fwd = str2double(params_input{1});
+                    r12_min_rev = str2double(params_input{2});
+                    params.pot_name = params_input{3};
+
+                    %%% cutoff distances
+                    r12s_max = [r12_max_fwd 0];
+                    r12s_min = [0 r12_min_rev];
+
+
                 %%% bond with angles
                 case "single_stiff"
-                    nti = 2;
-                    nsubreact = 1;
+
+                    %%% atom types
                     tis_site5 = [1;0];
                     tis_site3 = [2;0];
+
+                    %%% parameter names
+                    reaction.check_nparam(params_input,3)
+                    r12_max = str2double(params_input{1});
+                    params.pot_name = params_input{2};
+                    params.apot_name = params_input{3};
+                    
+                    %%% cutoff distances
+                    r12s_max = r12_max;
+                    r12s_min = 0;
+
 
                 %%% breakable bond with angles
                 case "single_stiff_rev"
-                    nti = 2;
-                    nsubreact = 2;
+
+                    %%% atom types
                     tis_site5 = [1;0];
                     tis_site3 = [2;0];
 
-                %%% bond with angles added later
+                    %%% parameter names
+                    reaction.check_nparam(params_input,4)
+                    r12_max_fwd = str2double(params_input{1});
+                    r12_min_rev = str2double(params_input{2});
+                    params.pot_name = params_input{3};
+                    params.apot_name = params_input{4};
+
+                    %%% cutoff distances
+                    r12s_max = [r12_max_fwd 0];
+                    r12s_min = [0 r12_min_rev];
+                    
+
+                %%% bond, then angles
                 case "single_stiffen"
-                    nti = 2;
-                    nsubreact = 2;
+
+                    %%% atom types
                     tis_site5 = [1;0];
                     tis_site3 = [2;0];
 
-                %%% breakable bond with angles added later
+                    %%% parameter names
+                    reaction.check_nparam(params_input,4)
+                    r12_max = str2double(params_input{1});
+                    params.pot_name = params_input{2};
+                    params.theta_min = str2double(params_input{3});
+                    params.apot_name = params_input{4};
+
+                    %%% cutoff distances
+                    r12s_max = [r12_max r12_max];
+                    r12s_min = [0 0];
+
+
+                %%% breakable bond, then angles
                 case "single_stiffen_rev"
-                    nti = 2;
-                    nsubreact = 3;
+
+                    %%% atom types
                     tis_site5 = [1;0];
                     tis_site3 = [2;0];
 
-                %%% bond with angles and dihedral added later
+                    %%% parameter names
+                    reaction.check_nparam(params_input,5)
+                    r12_max_fwd = str2double(params_input{1});
+                    r12_min_rev = str2double(params_input{2});
+                    params.pot_name = params_input{3};
+                    params.theta_min = str2double(params_input{4});
+                    params.apot_name = params_input{5};
+
+                    %%% cutoff distances
+                    r12s_max = [r12_max_fwd r12_max_fwd 0];
+                    r12s_min = [0 0 r12_min_rev];
+
+
+                %%% bond, then angles, then dihedral
                 case "single_stiffen_twist"
-                    nti = 3;
-                    nsubreact = 3;
+
+                    %%% atom types
                     tis_site5 = [1;0;3];
                     tis_site3 = [2;0;3];
                     is_charged = 1;
 
-                %%% two bonds
-                case "double"
-                    nti = 4;
-                    nsubreact = 2;
-                    tis_site5 = [1;3];
-                    tis_site3 = [2;4];
+                    %%% parameter names
+                    reaction.check_nparam(params_input,6)
+                    r12_max = str2double(params_input{1});
+                    params.pot_name = params_input{2};
+                    params.theta_min = str2double(params_input{3});
+                    params.apot_name = params_input{4};
+                    params.phi_max = str2double(params_input{5});
+                    params.dpot_name = params_input{6};
 
-                %%% two bonds with angles added later
-                case "double_stiffen"
-                    nti = 4;
-                    nsubreact = 3;
-                    tis_site5 = [1;0;3;0];
-                    tis_site3 = [2;0;4;0];
-
-                %%% four bonds
-                case "quad"
-                    nti = 8;
-                    nsubreact = 4;
-                    tis_site5 = [1;3;5;7];
-                    tis_site3 = [2;4;6;8];
-
-                %%% four bonds with angles added later
-                case "quad_stiffen"
-                    nti = 8;
-                    nsubreact = 5;
-                    tis_site5 = [1;0;3;0;5;0;7;0];
-                    tis_site3 = [2;0;4;0;6;0;8;0];
-
-                %%% four bonds with helping angles, real angles added later
-                case "quad_stiffen_help"
-                    nti = 8;
-                    nsubreact = 5;
-                    tis_site5 = [1;0;3;0;5;0;7;0];
-                    tis_site3 = [2;0;4;0;6;0;8;0];
-                   
-                %%% error
-                otherwise
-                    error("Unknown reaction type.")
-            end
-        end
-
-        %%% initialize reaction parameters based on style
-        function [r12s_max,r12s_min] = init_r12s(style,params)
-
-            %%% reaction style
-            switch style
-
-                %%% bond
-                case "single"
-                    reaction.check_nparam(params,2)
-                    r12s_max = str2double(params{1});
-                    r12s_min = 0;
-
-                %%% breakable bond
-                case "single_rev"
-                    reaction.check_nparam(params,3)
-                    r12s_max = [str2double(params{1}) 0];
-                    r12s_min = [0 str2double(params{2})];
-
-                %%% bond with angles
-                case "single_stiff"
-                    reaction.check_nparam(params,3)
-                    r12s_max = str2double(params{1});
-                    r12s_min = 0;
-
-                %%% breakable bond with angles
-                case "single_stiff_rev"
-                    reaction.check_nparam(params,4)
-                    r12s_max = [str2double(params{1}) 0];
-                    r12s_min = [0 str2double(params{2})];
-
-                %%% bond with angles added later
-                case "single_stiffen"
-                    reaction.check_nparam(params,4)
-                    r12_max = str2double(params{1});
-                    r12s_max = [r12_max r12_max];
-                    r12s_min = [0 0];
-
-                %%% breakable bond with angles added later
-                case "single_stiffen_rev"
-                    reaction.check_nparam(params,5)
-                    r12_max = str2double(params{1});
-                    r12s_max = [r12_max r12_max 0];
-                    r12s_min = [0 0 str2double(params{2})];
-
-                %%% bond with angles and dihedral added later
-                case "single_stiffen_twist"
-                    reaction.check_nparam(params,6)
-                    r12_max = str2double(params{1});
+                    %%% cutoff distances
                     r12s_max = [r12_max r12_max r12_max];
                     r12s_min = [0 0 0];
 
+
+                %%% bond with weak angles, then stiff angles, then dihedral
+                case "single_stiffen2x_twist"
+
+                    %%% atom types
+                    tis_site5 = [1;0;3];
+                    tis_site3 = [2;0;3];
+                    is_charged = 1;
+
+                    %%% parameter names
+                    reaction.check_nparam(params_input,7)
+                    r12_max = str2double(params_input{1});
+                    params.pot_name = params_input{2};
+                    params.apot1_name = params_input{3};
+                    params.theta_min = str2double(params_input{4});
+                    params.apot2_name = params_input{5};
+                    params.phi_max = str2double(params_input{6});
+                    params.dpot_name = params_input{7};
+
+                    %%% cutoff distances
+                    r12s_max = [r12_max r12_max r12_max];
+                    r12s_min = [0 0 0];
+
+                %%% bond with weak angles, then stiff angles with weak dihedral, then stiff dihedral
+                case "single_stiffen2x_twist2x"
+
+                    %%% atom types
+                    tis_site5 = [1;0;3];
+                    tis_site3 = [2;0;3];
+                    is_charged = 1;
+
+                    %%% parameter names
+                    reaction.check_nparam(params_input,8)
+                    r12_max = str2double(params_input{1});
+                    params.pot_name = params_input{2};
+                    params.apot1_name = params_input{3};
+                    params.theta_min = str2double(params_input{4});
+                    params.apot2_name = params_input{5};
+                    params.dpot1_name = params_input{6};
+                    params.phi_max = str2double(params_input{7});
+                    params.dpot2_name = params_input{8};
+
+                    %%% cutoff distances
+                    r12s_max = [r12_max r12_max r12_max];
+                    r12s_min = [0 0 0];
+
+
                 %%% two bonds
                 case "double"
-                    reaction.check_nparam(params,2)
-                    r12_max = str2double(params{1});
+
+                    %%% atom types
+                    tis_site5 = [1;3];
+                    tis_site3 = [2;4];
+
+                    %%% parameter names
+                    reaction.check_nparam(params_input,2)
+                    r12_max = str2double(params_input{1});
+                    params.pot_name = params_input{2};
+
+                    %%% cutoff distances
                     r12s_max = [r12_max r12_max];
                     r12s_min = [0 0];
 
-                %%% two bonds with angles added later
+
+                %%% two bonds, then angles
                 case "double_stiffen"
-                    reaction.check_nparam(params,4)
-                    r12_max = str2double(params{1});
+
+                    %%% atom types
+                    tis_site5 = [1;0;3;0];
+                    tis_site3 = [2;0;4;0];
+                    
+                    %%% parameter names
+                    reaction.check_nparam(params_input,4)
+                    r12_max = str2double(params_input{1});
+                    params.pot_name = params_input{2};
+                    params.theta_min = str2double(params_input{3});
+                    params.apot_name = params_input{4};
+
+                    %%% cutoff distances
                     r12s_max = [r12_max r12_max 0];
                     r12s_min = [0 0 0];
 
+
                 %%% four bonds
                 case "quad"
-                    reaction.check_nparam(params,2)
-                    r12_max = str2double(params{1});
+
+                    %%% atom types
+                    tis_site5 = [1;3;5;7];
+                    tis_site3 = [2;4;6;8];
+
+                    %%% parameter names
+                    reaction.check_nparam(params_input,2)
+                    r12_max = str2double(params_input{1});
+                    params.pot_name = params_input{2};
+
+                    %%% cutoff distances
                     r12s_max = [r12_max r12_max r12_max r12_max];
                     r12s_min = [0 0 0 0];
 
-                %%% four bonds with angles aded later
+
+                %%% four bonds, then angles
                 case "quad_stiffen"
-                    reaction.check_nparam(params,4)
-                    r12_max = str2double(params{1});
+
+                    %%% atom types
+                    tis_site5 = [1;0;3;0;5;0;7;0];
+                    tis_site3 = [2;0;4;0;6;0;8;0];
+
+                    %%% parameter names
+                    reaction.check_nparam(params_input,4)
+                    r12_max = str2double(params_input{1});
+                    params.pot_name = params_input{2};
+                    params.theta_min = str2double(params_input{3});
+                    params.apot_name = params_input{4};
+
+                    %%% cutoff distances
                     r12s_max = [r12_max r12_max r12_max r12_max 0];
                     r12s_min = [0 0 0 0 0];
 
-                %%% four bonds with angles aded later
-                case "quad_stiffen_help"
-                    reaction.check_nparam(params,5)
-                    r12_max = str2double(params{1});
+
+                %%% four bonds with weak angles, then stiff angles
+                case "quad_stiffen2x"
+
+                    %%% atom types
+                    tis_site5 = [1;0;3;0;5;0;7;0];
+                    tis_site3 = [2;0;4;0;6;0;8;0];
+
+                    %%% parameter names
+                    reaction.check_nparam(params_input,5)
+                    r12_max = str2double(params_input{1});
+                    params.pot_name = params_input{2};
+                    params.apot1_name = params_input{3};
+                    params.theta_min = str2double(params_input{4});
+                    params.apot2_name = params_input{5};
+
+                    %%% cutoff distances
                     r12s_max = [r12_max r12_max r12_max r12_max 0];
                     r12s_min = [0 0 0 0 0];
-                   
+                    
+
                 %%% error
                 otherwise
                     error("Unknown reaction type.")
             end
+
+            %%% new atom type count and sub-reaction count
+            nti = max([tis_site5; tis_site3]);
+            nsubreact = length(r12s_max);
         end
 
 

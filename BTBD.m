@@ -1,6 +1,6 @@
 %%% Housekeeping
 clc; clear; close all;
-rng(43)
+rng(42)
 
 %%% To Do
 % update readme.
@@ -28,7 +28,7 @@ inFile = "./designs/triarm_ds3_se1.txt";
 [p,os,ls,rs,pots,apots,dpots,nABADtype] = read_input(inFile);
 
 %%% set output
-outFold = "/Users/dduke/Files/triarm/experiment/active";
+outFold = "/Users/dduke/Files/triarm/experiment/active3/";
 nsim = 1;
 
 %%% create output folder
@@ -46,15 +46,15 @@ for i = 1:nsim
     %%% initialize positions
     os = init_positions(os,p);
 
-    %%% write lammps simulation geometry file
-    geoFile = simFold + "geometry.in";
-    geoVisFile = simFold + "geometry_vis.in";
-    compose_geo(geoFile,geoVisFile,p.dbox,nABADtype,os,ls,rs);
-    
     %%% write lammps input file
     inputFile = simFold + "lammps.in";
     reactFold = simFold + "react/";
     write_input(inputFile,reactFold,p,nABADtype,ls,rs,pots,apots,dpots)
+
+    %%% write lammps simulation geometry file
+    geoFile = simFold + "geometry.in";
+    geoVisFile = simFold + "geometry_vis.in";
+    compose_geo(geoFile,geoVisFile,p.dbox,nABADtype,os,ls,rs);
 end
 
 
@@ -355,13 +355,15 @@ function [p,os,ls,rs,pots,apots,dpots,nABADtype] = read_input(inFile)
                         %%% add dihedral
                         case 'dihedral'
                             bi1 = str2double(extract{3});
-                            patch11 = extract{4};
-                            patch12 = extract{5};
-                            bi2 = str2double(extract{6});
-                            patch21 = extract{7};
-                            patch22 = extract{8};
-                            dpot = dpots(extract{9});
-                            origami_templates(extract{1}) = origami_templates(extract{1}).add_dihedral(bi1,patch11,patch12,bi2,patch21,patch22,dpot);
+                            patch1 = extract{4};
+                            bi2 = str2double(extract{5});
+                            patch2 = extract{6};
+                            bi3 = str2double(extract{7});
+                            patch3 = extract{8};
+                            bi4 = str2double(extract{9});
+                            patch4 = extract{10};
+                            dpot = dpots(extract{11});
+                            origami_templates(extract{1}) = origami_templates(extract{1}).add_dihedral(bi1,patch1,bi2,patch2,bi3,patch3,bi4,patch4,dpot);
 
                         %%% error
                         otherwise
@@ -479,6 +481,7 @@ end
 
 %%% write lammps geometry file
 function compose_geo(geoFile,geoVisFile,dbox,nABADtype,os,ls,rs)
+    disp("Writing geometry file...")
 
     %%% initialize mass info
     mass_patch = 0.01;
@@ -617,28 +620,67 @@ function compose_geo(geoFile,geoVisFile,dbox,nABADtype,os,ls,rs)
     end
 
     %%% rigid bonds for connection angles
+    bond = zeros(3,1);
+    bond_type = 1;
     for oi = 1:length(os)
         for ai = 1:length(os(oi).angles_apot)
             if os(oi).angles_status(ai) == 1
-                bond_type = 1;
                 iu1 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(1,ai), os(oi).angles_ibs(1,ai) ) );
                 iu2 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(2,ai), os(oi).angles_ibs(2,ai) ) );
                 if iu1 == 0 || iu2 == 0
                     error("Angle bead does not exist.")
                 end
-                bond_count = bond_count + 1;
-                bonds(1,bond_count) = bond_type;
-                bonds(2,bond_count) = iu1;
-                bonds(3,bond_count) = iu2;
+                bond(1) = bond_type;
+                bond(2) = iu1;
+                bond(3) = iu2;
+                if ~any(all(bonds == bond, 1))
+                    bond_count = bond_count + 1;
+                    bonds(:,bond_count) = bond;
+                end
                 iu3 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(3,ai), os(oi).angles_ibs(3,ai) ) );
                 iu4 = get_iu( oi, os(oi).get_io( os(oi).angles_bis(4,ai), os(oi).angles_ibs(4,ai) ) );
                 if iu3 == 0 || iu4 == 0
                     error("Angle bead does not exist.")
                 end
+                bond(1) = bond_type;
+                bond(2) = iu3;
+                bond(3) = iu4;
+                if ~any(all(bonds == bond, 1))
+                    bond_count = bond_count + 1;
+                    bonds(:,bond_count) = bond;
+                end
+            end
+        end
+    end
+
+    %%% rigid bonds for connection dihedrals
+    bond = zeros(3,1);
+    bond_type = 1;
+    for oi = 1:length(os)
+        for di = 1:length(os(oi).dihedrals_dpot)
+            iu1 = get_iu( oi, os(oi).get_io( os(oi).dihedrals_bis(1,di), os(oi).dihedrals_ibs(1,di) ) );
+            iu2 = get_iu( oi, os(oi).get_io( os(oi).dihedrals_bis(2,di), os(oi).dihedrals_ibs(2,di) ) );
+            if iu1 == 0 || iu2 == 0
+                error("Dihedral bead does not exist.")
+            end
+            bond(1) = bond_type;
+            bond(2) = iu1;
+            bond(3) = iu2;
+            if ~any(all(bonds == bond, 1))
                 bond_count = bond_count + 1;
-                bonds(1,bond_count) = bond_type;
-                bonds(2,bond_count) = iu3;
-                bonds(3,bond_count) = iu4;
+                bonds(:,bond_count) = bond;
+            end
+            iu3 = get_iu( oi, os(oi).get_io( os(oi).dihedrals_bis(3,di), os(oi).dihedrals_ibs(3,di) ) );
+            iu4 = get_iu( oi, os(oi).get_io( os(oi).dihedrals_bis(4,di), os(oi).dihedrals_ibs(4,di) ) );
+            if iu3 == 0 || iu4 == 0
+                error("Dihedral bead does not exist.")
+            end
+            bond(1) = bond_type;
+            bond(2) = iu3;
+            bond(3) = iu4;
+            if ~any(all(bonds == bond, 1))
+                bond_count = bond_count + 1;
+                bonds(:,bond_count) = bond;
             end
         end
     end
@@ -745,6 +787,7 @@ end
 
 %%% write lammps input file
 function write_input(inputFile,reactFold,p,nABADtype,ls,rs,pots,apots,dpots)
+    disp("Writing input file...")
 
     %%% calculate communication cutoff
     if p.comm_cutoff == 0
@@ -940,9 +983,9 @@ function write_input(inputFile,reactFold,p,nABADtype,ls,rs,pots,apots,dpots)
             "## Updates\n",...
             "dump            dumpT all custom ", num2str(p.dump_every), " trajectory.dat id mol xs ys zs\n",...
             "dump_modify     dumpT sort id\n",...
-            "compute         compB1 patchy bond/local dist engpot\n",...
-            "compute         compB2 patchy property/local btype batom1 batom2\n",...
-            "dump            dumpB patchy local ", num2str(p.dump_every), " dump_bonds.dat index c_compB1[1] c_compB1[2] c_compB2[1] c_compB2[2] c_compB2[3]\n"));
+            "compute         compB1 sticky bond/local dist engpot\n",...
+            "compute         compB2 sticky property/local btype batom1 batom2\n",...
+            "dump            dumpB sticky local ", num2str(p.dump_every), " dump_bonds.dat index c_compB1[1] c_compB1[2] c_compB2[1] c_compB2[2] c_compB2[3]\n"));
         if nABADtype(3) > 0
             fprintf(f,strcat(...
 			"compute         compA1 patchy angle/local theta eng\n",...
