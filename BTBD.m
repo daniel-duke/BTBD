@@ -28,7 +28,7 @@ inFile = "./designs/triarm_ds3_se1.txt";
 [p,os,ls,rs,pots,apots,dpots,nABADtype] = read_input(inFile);
 
 %%% set output
-outFold = "/Users/dduke/Files/triarm/experiment/active3/";
+outFold = "/Users/dduke/Files/triarm/experiment/active/";
 nsim = 1;
 
 %%% create output folder
