@@ -1,6 +1,6 @@
 %%% Housekeeping
 clc; clear; close all;
-rng(42)
+rng(37)
 
 %%% To Do
 % update readme.
