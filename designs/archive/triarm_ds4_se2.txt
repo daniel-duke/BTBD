@@ -1,7 +1,7 @@
 %%% parameters
-nstep           1E7
+nstep           1E6
 dump_every      1E4
-dbox            200
+dbox            250
 dt              0.04
 sigma           10
 epsilon         1
@@ -10,9 +10,9 @@ r12_helix       5
 
 %%% potentials
 bond_pot Cds    harmonic 15 10
-bond_pot Lse    harmonic 5 10
-angle_pot Cds   180 2
-angle_pot Lse   180 40
+bond_pot Lse    harmonic_cut 5 10 10
+angle_pot Cds   harmonic 180 2
+angle_pot Lse   harmonic 180 40
 
 %%% inert block
 block Bi        1HB 5
@@ -55,10 +55,6 @@ O1 conn         2 CRUmF 3 CLUmF Cds
 O1 conn         2 CRLmF 3 CLLmF Cds
 O1 conn         3 CRUmF 1 CLUmF Cds
 O1 conn         3 CRLmF 1 CLLmF Cds
-O1 conn         1 LUF 1 LUB zero
-O1 conn         1 LLF 1 LLB zero
-O1 conn         2 LUF 2 LUB zero
-O1 conn         2 LLF 2 LLB zero
 O1 angle        1 CRUB CRUF 2 CLUF CLUB Cds theta_init 150 axis_init 0 1 0
 O1 angle        2 CRUB CRUF 3 CLUF CLUB Cds theta_init 150 axis_init 0 1 0
 O1 angle        3 CRUB CRUF 1 CLUF CLUB Cds theta_init 150 axis_init 0 1 0
@@ -72,12 +68,7 @@ O1 angle        1 CRLmB CRLmF 2 CLLmF CLLmB Cds theta_init 150 axis_init 0 1 0
 O1 angle        2 CRLmB CRLmF 3 CLLmF CLLmB Cds theta_init 150 axis_init 0 1 0
 O1 angle        3 CRLmB CRLmF 1 CLLmF CLLmB Cds theta_init 150 axis_init 0 1 0
 
-%%% linkers
-linker L1       Lse 6
-L1 angle        Lse theta_min 120
-L1 5p           O1 1 LUF
-L1 3p           O1 2 LUF
-linker L2       Lse 6
-L2 angle        Lse theta_min 120
-L2 5p           O1 1 LLF
-L2 3p           O1 2 LLF
+%%% reactions
+reaction R1     double_stiffen 6 Lse 120 Lse
+R1 5p           O1 1 LUF LUB LLF LLB
+R1 3p           O1 2 LUF LUB LLF LLB

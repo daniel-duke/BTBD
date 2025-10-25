@@ -1,0 +1,57 @@
+%%% parameters
+nstep           1E6
+dump_every      1E4
+dbox            100
+dt              0.04
+sigma           10
+epsilon         1
+r12_bead        5
+r12_helix       5
+
+%%% potentials
+bond_pot C      harmonic 15 10
+bond_pot L      harmonic 7.2 10
+angle_pot C     harmonic 180 8
+angle_pot Li    cosine 180 20
+angle_pot Lf    harmonic 180 200
+dihedral_pot Cp cosine 180 8
+dihedral_pot Cr cosine 0 8
+dihedral_pot Li cosine 0 4
+dihedral_pot Lf harmonic 0 80
+
+%%% inert block
+block Bi        1HB 5
+patch CRB       Bi  3.6 0 10
+patch CRF       Bi  3.6 0 0
+patch CLB       Bi -3.6 0 10
+patch CLF       Bi -3.6 0 0
+
+%%% active block
+block Ba        copy Bi
+patch LMF       Ba 0 0 25
+patch LMB       Ba 0 0 20
+patch LUF       Ba 0 5 25
+
+%%% origami
+origami O1      count 1
+O1 blocks       Ba Ba Bi
+O1 conn         1 CRF 2 CLF C
+O1 conn         2 CRF 3 CLF C
+O1 conn         3 CRF 1 CLF C
+O1 angle        1 CRB CRF 2 CLF CLB C theta_init 150 axis_init 0 1 0
+O1 angle        2 CRB CRF 3 CLF CLB C theta_init 150 axis_init 0 1 0
+O1 angle        3 CRB CRF 1 CLF CLB C theta_init 150 axis_init 0 1 0
+O1 dihedral     1 CLB 1 CLF 1 CRF 2 CLF Cp
+O1 dihedral     1 CRB 1 CRF 1 CLF 3 CRF Cp
+O1 dihedral     2 CLB 2 CLF 2 CRF 3 CLF Cp
+O1 dihedral     2 CRB 2 CRF 2 CLF 1 CRF Cp
+O1 dihedral     3 CLB 3 CLF 3 CRF 1 CLF Cp
+O1 dihedral     3 CRB 3 CRF 3 CLF 2 CRF Cp
+O1 dihedral     1 CLF 1 CRF 2 CLF 2 CRF Cr
+O1 dihedral     2 CLF 2 CRF 3 CLF 3 CRF Cr
+O1 dihedral     3 CLF 3 CRF 1 CLF 1 CRF Cr
+
+%%% reactions
+% reaction R1     single_stiffen2x_twist2x 7.2 L Li 170 Lf Li 10 Lf
+% R1 5p           O1 1 LMF LMB LUF
+% R1 3p           O1 2 LMF LMB LUF

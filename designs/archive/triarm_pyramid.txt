@@ -1,7 +1,7 @@
 %%% simulation parameters
-nstep           1E7
+nstep           1E6
 dump_every      1E4
-dbox            200
+dbox            250
 dt              0.04
 sigma           10
 epsilon         1
@@ -44,10 +44,10 @@ O1 conn         2 CRUF 3 CLUF CUds
 O1 conn         2 CRLF 3 CLLF CLds
 O1 conn         3 CRUF 1 CLUF CUds
 O1 conn         3 CRLF 1 CLLF CLds
-O1 conn         1 LUF 1 LUB dummy
-O1 conn         1 LLF 1 LLB dummy
-O1 conn         2 LUF 2 LUB dummy
-O1 conn         2 LLF 2 LLB dummy
+O1 conn         1 LUF 1 LUB zero
+O1 conn         1 LLF 1 LLB zero
+O1 conn         2 LUF 2 LUB zero
+O1 conn         2 LLF 2 LLB zero
 O1 angle        1 CRUB CRUF 2 CLUF CLUB CUds theta_init 135 axis_init 1 1 0
 O1 angle        2 CRUB CRUF 3 CLUF CLUB CLds theta_init 135 axis_init 1 1 0
 O1 angle        3 CRUB CRUF 1 CLUF CLUB CUds theta_init 135 axis_init 1 1 0
@@ -56,11 +56,11 @@ O1 angle        2 CRLB CRLF 3 CLLF CLLB CUds theta_init 135 axis_init 1 1 0
 O1 angle        3 CRLB CRLF 1 CLLF CLLB CLds theta_init 135 axis_init 1 1 0
 
 %%% linkers
-linker L1       Lse 6
+linker L1       6 Lse
 L1 angle        Lse theta_min 120
 L1 5p           O1 1 LUF
 L1 3p           O1 2 LUF
-linker L2       Lse 6
+linker L2       6 Lse
 L2 angle        Lse theta_min 120
 L2 5p           O1 1 LLF
 L2 3p           O1 2 LLF

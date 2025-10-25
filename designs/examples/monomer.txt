@@ -1,5 +1,5 @@
 %%% parameters
-nstep           1E7                 % number of production steps
+nstep           1E6                 % number of production steps
 dump_every      1E4                 % number of relaxation/shrink steps
 dbox            100                 % periodic boundary diameter
 dt              0.04                % integration time step

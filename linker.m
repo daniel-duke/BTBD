@@ -2,8 +2,8 @@
 classdef linker
     properties
         label           % linker name
-        pot_index       % bond type
         r12_cut         % cutoff radius
+        pot_index       % bond type
         apot_index      % angle type
         theta_min       % minimum theta
         theta_max       % maximum theta
@@ -20,11 +20,11 @@ classdef linker
 
     methods
         %%% constructor
-        function l = linker(label,pot_index,r12_cut,ti_start)
+        function l = linker(label,r12_cut,pot_index,ti_start)
             if nargin > 0
                 l.label = label;
-                l.pot_index = pot_index;
                 l.r12_cut = r12_cut;
+                l.pot_index = pot_index;
                 l.apot_index = 0;
                 l.theta_min = 0;
                 l.theta_max = 180;

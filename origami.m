@@ -174,8 +174,8 @@ classdef origami
         function failed = are_dihedrals_strained(o,p,bi)
             failed = false;
             for di = 1:o.ndihedral
-                if o.dihedrals_bis(1,di) <= bi && o.dihedrals_bis(3,di) <= bi
-                    if o.dihedrals_bis(1,di) == bi || o.dihedrals_bis(3,di) == bi
+                if o.dihedrals_bis(1,di) <= bi && o.dihedrals_bis(2,di) <= bi && o.dihedrals_bis(3,di) <= bi && o.dihedrals_bis(4,di) <= bi
+                    if o.dihedrals_bis(1,di) == bi || o.dihedrals_bis(2,di) == bi || o.dihedrals_bis(3,di) == bi || o.dihedrals_bis(4,di) == bi
                         r1 = o.bs(o.dihedrals_bis(1,di)).r(:,o.dihedrals_ibs(1,di));
                         r2 = o.bs(o.dihedrals_bis(2,di)).r(:,o.dihedrals_ibs(2,di));
                         r3 = o.bs(o.dihedrals_bis(3,di)).r(:,o.dihedrals_ibs(3,di));

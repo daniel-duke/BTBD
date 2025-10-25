@@ -1,6 +1,6 @@
 %%% Housekeeping
 clc; clear; close all;
-rng(37)
+rng(42)
 
 %%% To Do
 % update readme.
@@ -24,7 +24,7 @@ rng(37)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% read input
-inFile = "./designs/triarm_ds3_se1.txt";
+inFile = "./designs/triarm_ds1_se1.txt";
 [p,os,ls,rs,pots,apots,dpots,nABADtype] = read_input(inFile);
 
 %%% set output
@@ -264,10 +264,10 @@ function [p,os,ls,rs,pots,apots,dpots,nABADtype] = read_input(inFile)
             %%% initialize linker
             case 'linker'
                 label = string(extract{2});
-                pot_index = pots(extract{3}).index;
-                r12_cut = str2double(extract{4});
+                r12_cut = str2double(extract{3});
+                pot_index = pots(extract{4}).index;
                 ti_start = ti_count + 1;
-                linkers(extract{2}) = linker(label,pot_index,r12_cut,ti_start);
+                linkers(extract{2}) = linker(label,r12_cut,pot_index,ti_start);
                 ti_count = ti_count + 2;
             
             %%% initialize reaction
@@ -982,10 +982,13 @@ function write_input(inputFile,reactFold,p,nABADtype,ls,rs,pots,apots,dpots)
         fprintf(f,strcat(...
             "## Updates\n",...
             "dump            dumpT all custom ", num2str(p.dump_every), " trajectory.dat id mol xs ys zs\n",...
-            "dump_modify     dumpT sort id\n",...
+            "dump_modify     dumpT sort id\n"));
+        if nABADtype > 2
+            fprintf(f,strcat(...
             "compute         compB1 sticky bond/local dist engpot\n",...
             "compute         compB2 sticky property/local btype batom1 batom2\n",...
             "dump            dumpB sticky local ", num2str(p.dump_every), " dump_bonds.dat index c_compB1[1] c_compB1[2] c_compB2[1] c_compB2[2] c_compB2[3]\n"));
+        end
         if nABADtype(3) > 0
             fprintf(f,strcat(...
 			"compute         compA1 patchy angle/local theta eng\n",...
