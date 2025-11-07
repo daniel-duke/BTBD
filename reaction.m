@@ -415,12 +415,12 @@ classdef reaction
 
 
         %%% write lines that add reactions to fix
-        function write_react(r,f,force_cut,react_every)
+        function write_react(r,f,neigh_cut,react_every)
             for sri = 1:r.nsubreact
                 r12_min = r.r12s_min(sri);
                 r12_max = r.r12s_max(sri);
                 if r12_max == 0
-                    r12_max = force_cut;
+                    r12_max = neigh_cut;
                 end
                 fprintf(f,strcat(...
                     " &\n                react ",...

@@ -20,7 +20,8 @@ rng(42)
 % io - bead index within entire origami
 % iu - bead index within the universe
 % connection - permenant (usually scaffold) bond
-% linker - switchable (usually sticky end) bond
+% linker - formable (usually sticky end) bond
+% reaction - more complex linker
 
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -53,12 +54,12 @@ for i = 1:nsim
     %%% write lammps simulation geometry file
     geoFile = simFold + "geometry.in";
     geoVisFile = simFold + "geometry_vis.in";
-    [force_cut_bond, force_cut_react] = compose_geo(geoFile,geoVisFile,p,os,ls,rs,pots);
+    [comm_cut, pair_cut_react] = compose_geo(geoFile,geoVisFile,p,os,ls,rs,pots);
 
     %%% write lammps input file
     inputFile = simFold + "lammps.in";
     reactFold = simFold + "react/";
-    write_input(inputFile,reactFold,p,ls,rs,pots,apots,dpots,force_cut_bond,force_cut_react)
+    write_input(inputFile,reactFold,p,ls,rs,pots,apots,dpots,comm_cut,pair_cut_react)
 end
 
 
@@ -77,7 +78,7 @@ function p = read_parameters(inFile)
         'dbox',         NaN, ...        % nm            - periodic boundary diameter
         'shrink_ratio', 1,   ...        % none          - box compression (final/initial)
         'dt',           NaN, ...        % ns            - integration time step
-        'verlet_skin',  4,   ...       % nm            - width of neighbor list skin
+        'verlet_skin',  4,   ...        % nm            - width of neighbor list skin
         'neigh_every',  1e1, ...        % steps         - how often to consider updating neighbor list
         'react_every',  1e1, ...        % steps         - how often to check for linker hybridization
         'T',            300, ...        % K             - temperature
@@ -506,8 +507,18 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% write lammps geometry file
-function [force_cut_bond, force_cut_react] = compose_geo(geoFile,geoVisFile,p,os,ls,rs,pots)
+function [comm_cut, pair_cut_react] = compose_geo(geoFile,geoVisFile,p,os,ls,rs,pots)
     disp("Writing geometry file...")
+
+    %%% notes
+    % the communication cutoff is calculated from the maximum extent of any
+      % bonded interactions, both permenant interactions and potential new
+      % interactions from reactions.
+    % instead of looking through the bonded interactions of each reaction
+       % and calculating its max span, the maximum initiator-bead distance
+       % is calculated for each site, then those values are added to the
+       % initiator bond distance to get the maximum possible span (used to
+       % determine communication cutoff).
 
     %%% name atom types
     ti_structural = 1;
@@ -520,21 +531,21 @@ function [force_cut_bond, force_cut_react] = compose_geo(geoFile,geoVisFile,p,os
     masses(ti_massSpread) = p.mass/4;
     masses(3:end) = p.mass/100;
 
-    %%% initialize bonded-interaction force cutoff
-    U_max = 20;
-    force_cut_bond = 0;
+    %%% initialize communication cutoff from bond types
+    U_max = 12;
+    comm_cut = 0;
     if numEntries(pots) > 0
         for p_name = keys(pots)'
             r12_max = pots(p_name).calc_separation(U_max);
-            force_cut_bond = max([force_cut_bond,r12_max]);
+            comm_cut = max([comm_cut,r12_max]);
         end
     end
 
-    %%% initialize linker/reaction force cutoff
-    force_cut_react = 0;
+    %%% initialize pairwise cutoff for linkers/reactions
+    pair_cut_react = 0;
     for li = 1:length(ls)
         r12_cut = ls(li).r12_cut;
-        force_cut_react = max([force_cut_react,r12_cut]);
+        pair_cut_react = max([pair_cut_react,r12_cut]);
     end
 
     %%% count origami types
@@ -749,7 +760,7 @@ function [force_cut_bond, force_cut_react] = compose_geo(geoFile,geoVisFile,p,os
                 [bonds,bond_count,r34_max] = add_dummy_bond(bonds,bond_count,iu3,iu4,rigid34,atoms,pots,U_max);
                 r13_max = r12_max + r23_max;
                 r24_max = r23_max + r34_max;
-                force_cut_bond = max([force_cut_bond,r13_max,r24_max]);
+                comm_cut = max([comm_cut,r13_max,r24_max]);
             end
         end
     end
@@ -770,7 +781,7 @@ function [force_cut_bond, force_cut_react] = compose_geo(geoFile,geoVisFile,p,os
             [bonds,bond_count,r23_max] = add_dummy_bond(bonds,bond_count,iu2,iu3,rigid23,atoms,pots,U_max);
             [bonds,bond_count,r34_max] = add_dummy_bond(bonds,bond_count,iu3,iu4,rigid34,atoms,pots,U_max);
             r14_max = r12_max + r23_max + r34_max;
-            force_cut_bond = max([force_cut_bond,r14_max]);
+            comm_cut = max([comm_cut,r14_max]);
         end
     end
 
@@ -799,8 +810,8 @@ function [force_cut_bond, force_cut_react] = compose_geo(geoFile,geoVisFile,p,os
                     bond_count = bond_count + 1;
                     bonds(:,bond_count) = bond;
                     if ir1 == 1
-                        r12_max = norm( atoms(3:5,iu2)-atoms(3:5,iu1) );
-                        r12_max_site5 = max([r12_max_site5,r12_max]);
+                        r12 = norm( atoms(3:5,iu2)-atoms(3:5,iu1) );
+                        r12_max_site5 = max([r12_max_site5,r12]);
                     end
                 end
             else
@@ -822,16 +833,17 @@ function [force_cut_bond, force_cut_react] = compose_geo(geoFile,geoVisFile,p,os
                     bond_count = bond_count + 1;
                     bonds(:,bond_count) = bond;
                     if ir1 == 1
-                        r12_max = norm( atoms(3:5,iu2)-atoms(3:5,iu1) );
-                        r12_max_site3 = max([r12_max_site3,r12_max]);
+                        r12 = norm( atoms(3:5,iu2)-atoms(3:5,iu1) );
+                        r12_max_site3 = max([r12_max_site3,r12]);
                     end
                 end
             end
         end
         r12_min_max = max(rs(ri).r12s_min);
         r12_max_max = max(rs(ri).r12s_max);
-        r12_max = r12_max_site5 + max([r12_min_max,r12_max_max]) + r12_max_site3;
-        force_cut_react = max([force_cut_react,r12_max]);
+        pair_cut_react = max([r12_min_max,r12_max_max]);
+        r12_max_react = r12_max_site5 + pair_cut_react + r12_max_site3;
+        comm_cut = max([comm_cut,r12_max_react]);
     end
 
     %%% bonds for visualization
@@ -901,12 +913,15 @@ end
 
 
 %%% write lammps input file
-function write_input(inputFile,reactFold,p,ls,rs,pots,apots,dpots,force_cut_bond,force_cut_react)
+function write_input(inputFile,reactFold,p,ls,rs,pots,apots,dpots,comm_cut,pair_cut_react)
     disp("Writing input file...")
 
-    %%% determine communication cutoff
-    force_cut_pair = p.r12_cut_WCA;
-    comm_cut = max([force_cut_pair,force_cut_bond,force_cut_react]) + p.verlet_skin;
+    %%% notes
+    % structural beads 
+
+    %%% calculate cutoffs
+    pair_cut_structural = p.r12_cut_WCA;
+    neigh_cut = max([pair_cut_structural,pair_cut_react]) + p.verlet_skin;
 
     %%% open file
     f = fopen(inputFile,'w');
@@ -939,13 +954,17 @@ function write_input(inputFile,reactFold,p,ls,rs,pots,apots,dpots,force_cut_bond
 
     %%% pairwise interactions
     fprintf(f,strcat(...
-        "pair_style      hybrid/overlay lj/cut ", ars.fstring(force_cut_pair,0,2), " zero 0.0\n",...
+        "pair_style      hybrid/overlay lj/cut ", ars.fstring(pair_cut_structural,0,2), " zero 0.0\n",...
         "pair_coeff      * * zero\n",...
         "pair_coeff      1 1 lj/cut ", ars.fstring(p.epsilon,0,2), " ", ars.fstring(p.sigma,0,2), "\n",...
         "pair_modify     pair lj/cut shift yes\n",...
-        "pair_coeff      * 3 zero ", ars.fstring(force_cut_bond,0,2), "\n",...
-        "pair_coeff      * 4*", num2str(p.nABADtype(1)), " zero ", ars.fstring(force_cut_react,0,2), "\n",...
+        "pair_coeff      4*", num2str(p.nABADtype(1)), " 4*", num2str(p.nABADtype(1)), " zero ", ars.fstring(pair_cut_react,0,2), "\n"));
+    
+    %%% extend communication cutoff
+    if comm_cut > neigh_cut
+    fprintf(f,strcat(...
         "comm_modify     cutoff ", ars.fstring(comm_cut,0,2),"\n"));
+    end
 
     %%% bonds
     bond_styles = unique([values(pots).style_lmp]);
@@ -1016,12 +1035,12 @@ function write_input(inputFile,reactFold,p,ls,rs,pots,apots,dpots,force_cut_bond
     fprintf(f,strcat(...
         "group           visible id <= ", num2str(p.n_vis),"\n"));
 
-    %%% patch group
+    %%% all patches group
     fprintf(f,strcat(...
         "group           patchy type 3:", num2str(p.nABADtype(1)), "\n",...
         "group           patchy_vis intersect patchy visible\n"));
 
-    %%% sticky patch group
+    %%% reaction patches group
     if ~isempty(ls) || ~isempty(rs)
         fprintf(f,strcat(...
             "group           sticky type 4:", num2str(p.nABADtype(1)), "\n",...
@@ -1075,7 +1094,7 @@ function write_input(inputFile,reactFold,p,ls,rs,pots,apots,dpots,force_cut_bond
         end
         fprintf(f,"fix             reactions sticky bond/react reset_mol_ids no");
         for ri = 1:length(rs)
-            rs(ri).write_react(f,force_cut_react,p.react_every)
+            rs(ri).write_react(f,neigh_cut,p.react_every)
         end
         fprintf(f,"\n");
     end
@@ -1093,7 +1112,7 @@ function write_input(inputFile,reactFold,p,ls,rs,pots,apots,dpots,force_cut_bond
         fprintf(f,strcat(...
             "\n## Output\n",...
             "dump            dumpT visible custom ", num2str(p.dump_every), " trajectory.dat id mol xs ys zs\n",...
-            "dump_modify     dumpT sort id\n",...
+            "dump_modify     dumpT sort id append yes\n",...
             "compute         compB1 patchy_vis bond/local dist engpot\n",...
             "compute         compB2 patchy_vis property/local btype batom1 batom2\n",...
             "dump            dumpB patchy_vis local ", num2str(p.dump_every), " dump_bonds.dat index c_compB1[1] c_compB1[2] c_compB2[1] c_compB2[2] c_compB2[3]\n",...

@@ -10,7 +10,7 @@ clc; clear; close all;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% parameters
-nstep = 1E6;
+nstep = 1E5;
 
 %%% set output
 outFold = "/Users/dduke/Data/triarm/experiment/active/";
