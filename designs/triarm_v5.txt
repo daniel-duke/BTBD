@@ -1,7 +1,7 @@
 %%% parameters
 nstep           1E6
-dump_every      1E3
-dbox            100
+dump_every      1E4
+dbox            250
 dt              0.1
 sigma           10
 epsilon         1
@@ -24,16 +24,16 @@ dihedral_pot Lf     harmonic 0 80
 block Bi        1HB 5
 patch CR        Bi  3.6  0  0
 patch CRA       Bi  3.6  0  2 omit
-patch CRY1      Bi  3.6  2  0
-patch CRY2      Bi  3.6  2 -2
-patch CRP1      Bi  1.6  0  0
-patch CRP2      Bi  1.6  0 -2
+patch CRY1      Bi  3.6  2  0 hide
+patch CRY2      Bi  3.6  2 -2 hide
+patch CRP1      Bi  1.6  0  0 hide
+patch CRP2      Bi  1.6  0 -2 hide
 patch CL        Bi -3.6  0  0
 patch CLA       Bi -3.6  0  2 omit
-patch CLY1      Bi -3.6  2  0
-patch CLY2      Bi -3.6  2 -2
-patch CLP1      Bi -1.6  0  0
-patch CLP2      Bi -1.6  0 -2
+patch CLY1      Bi -3.6  2  0 hide
+patch CLY2      Bi -3.6  2 -2 hide
+patch CLP1      Bi -1.6  0  0 hide
+patch CLP2      Bi -1.6  0 -2 hide
 
 %%% active block
 block Ba        copy Bi
@@ -42,8 +42,8 @@ patch LMB       Ba 0 0 23 hide
 patch LUF       Ba -0.7 2 25
 
 %%% origami
-origami O1      count 1
-O1 blocks       Ba Ba Ba
+origami O1      count 6
+O1 blocks       Ba Ba Bi
 O1 conn         1 CR 2 CL C
 O1 conn         2 CR 3 CL C
 O1 conn         3 CR 1 CL C

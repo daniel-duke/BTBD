@@ -82,26 +82,23 @@ classdef reaction
         %%% initialize bonds that connect all atoms within site
         function bonds_init = set_bonds_init(r)
             nbond_site5 = (r.n_site5*(r.n_site5-1))/2;
-            bonds_site5 = ones(nbond_site5,3);
+            nbond_site3 = (r.n_site3*(r.n_site3-1))/2;
+            bonds_init = ones(nbond_site5+nbond_site3,3);
             bond_count = 0;
             for i = 1:r.n_site5
                 for j = i+1:r.n_site5
                     bond_count = bond_count + 1;
-                    bonds_site5(bond_count,2) = i;
-                    bonds_site5(bond_count,3) = j;
+                    bonds_init(bond_count,2) = i;
+                    bonds_init(bond_count,3) = j;
                 end
             end
-            nbond_site3 = (r.n_site3*(r.n_site3-1))/2;
-            bonds_site3 = ones(nbond_site3,3);
-            bond_count = 0;
             for i = 1:r.n_site3
                 for j = i+1:r.n_site3
                     bond_count = bond_count + 1;
-                    bonds_site3(bond_count,2) = i+r.n_site5;
-                    bonds_site3(bond_count,3) = j+r.n_site5;
+                    bonds_init(bond_count,2) = i+r.n_site5;
+                    bonds_init(bond_count,3) = j+r.n_site5;
                 end
             end
-            bonds_init = [bonds_site5; bonds_site3];
         end
 
 
@@ -418,12 +415,12 @@ classdef reaction
 
 
         %%% write lines that add reactions to fix
-        function write_react(r,f,comm_cutoff,react_every)
+        function write_react(r,f,force_cut,react_every)
             for sri = 1:r.nsubreact
                 r12_min = r.r12s_min(sri);
                 r12_max = r.r12s_max(sri);
                 if r12_max == 0
-                    r12_max = comm_cutoff;
+                    r12_max = force_cut;
                 end
                 fprintf(f,strcat(...
                     " &\n                react ",...
@@ -1092,6 +1089,10 @@ classdef reaction
 
         %%% initialize reaction parameters based on style
         function [tis_site5,tis_site3,is_charged,params,r12s_max,r12s_min,nti,nti_nonComp,nsubreact] = init(style,params_input)
+
+            %%% notes
+            % if a max cutoff is zero, it set to the reaction force cutoff
+            % when writing the reaction files.
 
             %%% no charge by default
             is_charged = 0;

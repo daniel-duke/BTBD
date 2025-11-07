@@ -1,9 +1,9 @@
 %%% dihedral potential class for BTBD
 classdef dihedral_pot
     properties
-        label           % name
-        style           % dihedral style
-        phi_eq          % equilibrium dihedral
+        style           % dihedral style (BTBD notation)
+        style_lmp       % dihedral style (LAMMPS notation)
+        phi_eq          % equilibrium angle
         params          % parameters object
         index           % dihedral type (numeric)
     end
@@ -12,7 +12,7 @@ classdef dihedral_pot
         %%% constructor
         function dpot = dihedral_pot(label,phi_eq,params_input,index)
             if nargin > 0
-                dpot.label = label;
+                dpot.style = label;
                 dpot.phi_eq = phi_eq;
                 dpot.index = index;
                 dpot = dpot.set_params(params_input);
@@ -28,16 +28,16 @@ classdef dihedral_pot
         function dpot = set_params(dpot,params_input)
 
             %%% harmonic dihedral
-            if dpot.label == "harmonic"
-                dpot.style = "quadratic";
+            if dpot.style == "harmonic"
+                dpot.style_lmp = "quadratic";
                 dpot.params.k_phi = 6.96*params_input(1);
                 if dpot.phi_eq > 90
                     warning("Equilibrium angle should be acute for quadratic dihedral to avoid instabilities.")
                 end
 
             %%% cosine dihedral
-            elseif dpot.label == "cosine"
-                dpot.style = "harmonic";
+            elseif dpot.style == "cosine"
+                dpot.style_lmp = "harmonic";
                 dpot.params.k_phi = 6.96*params_input(1);
 
                 %%% set equilibrium angle parameter
@@ -64,12 +64,12 @@ classdef dihedral_pot
             end
 
             %%% harmonic dihedral
-            if dpot.label == "harmonic"
+            if dpot.style == "harmonic"
                 dphi = ars.applyPBC(phi-phi_ref,360);
                 U = dpot.params.k_phi/2*dphi^2;
 
             %%% cosine dihedral
-            elseif dpot.label == "cosine"
+            elseif dpot.style == "cosine"
                 dphi = ars.applyPBC(phi-phi_ref,360);
                 U = dpot.params.k_phi*(1-cosd(dphi));
 
@@ -83,17 +83,17 @@ classdef dihedral_pot
                 "dihedral_coeff  ",...
                 num2str(dpot.index)));
             if is_hybrid
-                fprintf(f," " + dpot.style);
+                fprintf(f," " + dpot.style_lmp);
             end
 
             %%% harmonic dihedral
-            if dpot.label == "harmonic"
+            if dpot.style == "harmonic"
                 fprintf(f,strcat(" ",...
                     num2str(dpot.params.k_phi/2)," ",...
                     num2str(dpot.phi_eq),"\n"));
             
             %%% cosine dihedral
-            elseif dpot.label == "cosine"
+            elseif dpot.style == "cosine"
                 fprintf(f,strcat(" ",...
                     num2str(dpot.params.k_phi)," ",...
                     num2str(dpot.params.d)," 1\n"));

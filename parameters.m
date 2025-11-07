@@ -18,7 +18,6 @@ classdef parameters
         r12_bead
         mass
         U_strained
-        comm_cut
         nABADtype
         n_vis
     end
@@ -44,7 +43,6 @@ classdef parameters
                 p.r12_bead = p_input.r12_bead;
                 p.mass = p_input.mass;
                 p.U_strained = 6.96*p_input.U_strained;
-                p.comm_cut = p_input.comm_cut;
                 p.nABADtype = zeros(1,4);
                 p.n_vis = 0;
             end

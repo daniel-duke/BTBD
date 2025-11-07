@@ -23,7 +23,6 @@ classdef origami
         dihedrals_dpot      % dihedral potential
         dihedrals_phi_init  % dihedral initial phi
         n                   % total number of beads
-        r                   % total positions
         get_bi              % map io to bi
         get_ib              % map io to ib
         get_io              % map bi and ib to io
@@ -66,7 +65,6 @@ classdef origami
             o.nblock = o.nblock + 1;
             o.bs = [o.bs b];
             o.n = sum([o.bs.n]);
-            o.r = zeros(3,o.n);
             [o.get_bi,o.get_ib,o.get_io] = map_indices(o);
         end
 
@@ -439,7 +437,6 @@ classdef origami
                 end
 
                 %%% update origami data
-                o.r = r_propose;
                 for bi = 1:o.nblock
                     o.bs(bi).R = R*o.bs(bi).R;
                     for ib = 1:o.bs(bi).n

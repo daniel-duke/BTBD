@@ -1,8 +1,8 @@
 %%% angle potential class for BTBD
 classdef angle_pot
     properties
-        label           % name
-        style           % angle style
+        style           % angle style (BTBD notation)
+        style_lmp       % angle style (LAMMPS notation)
         theta_eq        % equilibrium angle
         params          % parameters object
         index           % angle type (numeric)
@@ -12,7 +12,7 @@ classdef angle_pot
         %%% constructor
         function apot = angle_pot(style,theta_eq,params_input,index)
             if nargin > 0
-                apot.label = style;
+                apot.style = style;
                 apot.theta_eq = theta_eq;
                 apot.index = index;
                 apot = apot.set_params(params_input);
@@ -28,13 +28,13 @@ classdef angle_pot
         function apot = set_params(apot,params_input)
 
             %%% harmonic angle
-            if apot.label == "harmonic"
-                apot.style = "harmonic";
+            if apot.style == "harmonic"
+                apot.style_lmp = "harmonic";
                 apot.params.k_theta = 6.96*params_input(1);
 
             %%% cosine angle
-            elseif apot.label == "cosine"
-                apot.style = "cosine/delta";
+            elseif apot.style == "cosine"
+                apot.style_lmp = "cosine/delta";
                 apot.params.k_theta = 6.96*params_input(1);
 
             %%% error
@@ -52,11 +52,11 @@ classdef angle_pot
             end
 
             %%% harmonic angle
-            if apot.label == "harmonic"
+            if apot.style == "harmonic"
                 U = apot.params.k_theta/2*(theta-theta_ref)^2;
 
             %%% cosine angle
-            elseif apot.label == "cosine"
+            elseif apot.style == "cosine"
                 U = apot.params.k_theta*(1-cosd(theta-theta_ref));
 
             end
@@ -69,17 +69,17 @@ classdef angle_pot
                 "angle_coeff     ",...
                 num2str(apot.index)));
             if is_hybrid
-                fprintf(f," " + apot.style);
+                fprintf(f," " + apot.style_lmp);
             end
 
             %%% harmonic angle
-            if apot.label == "harmonic"
+            if apot.style == "harmonic"
                 fprintf(f,strcat(" ",...
                     num2str(apot.params.k_theta/2)," ",...
                     num2str(apot.theta_eq),"\n"));
 
             %%% harmonic angle
-            elseif apot.label == "cosine"
+            elseif apot.style == "cosine"
                 fprintf(f,strcat(" ",...
                     num2str(apot.params.k_theta)," ",...
                     num2str(apot.theta_eq),"\n"));
