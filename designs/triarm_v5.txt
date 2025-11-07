@@ -43,7 +43,11 @@ patch LUF       Ba -0.7 2 25
 
 %%% origami
 origami O1      count 6
+<<<<<<< HEAD
 O1 blocks       Ba Ba Bi
+=======
+O1 blocks       Ba Ba Ba
+>>>>>>> restart
 O1 conn         1 CR 2 CL C
 O1 conn         2 CR 3 CL C
 O1 conn         3 CR 1 CL C
