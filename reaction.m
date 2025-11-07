@@ -5,14 +5,18 @@ classdef reaction
         style           % reaction style
         params          % other parameters
         ti_start        % starting atom type
+        ti_start_vis    % starting atom type for visuals
         r12s_max        % minimum reaction distances
         r12s_min        % minimum reaction distances
-        nti             % number of internal atom types
+        nti             % number of internal tom types 
+        nti_nonComp     % number of non-complementary atom types
         nsubreact       % number of contituent reactions
         n_site5         % number of beads in 5p site
         tis_site5       % atom types of beads in 5p site
+        tis_site5_vis   % atom types of beads in 5p site for visuals
         n_site3         % number of beads in 3p site
         tis_site3       % atom types of beads in 3p site
+        tis_site3_vis   % atom types of beads in 3p site for visuals
         bonds_init      % pre-reaction bonds
         nsite5          % number of 5p sites
         site5s_oi       % 5p sites origami index
@@ -27,14 +31,15 @@ classdef reaction
 
     methods
         %%% constructor
-        function r = reaction(label,style,params_input,ti_start)
+        function r = reaction(label,style,params_input,ti_start,ti_start_vis)
             if nargin > 0
                 r.label = label;
                 r.style = style;
                 r.ti_start = ti_start;
-                [tis_internal_site5,tis_internal_site3,r.is_charged,r.params,r.r12s_max,r.r12s_min,r.nti,r.nsubreact] = reaction.init(style,params_input);
+                r.ti_start_vis = ti_start_vis;
+                [tis_internal_site5,tis_internal_site3,r.is_charged,r.params,r.r12s_max,r.r12s_min,r.nti,r.nti_nonComp,r.nsubreact] = reaction.init(style,params_input);
                 r = r.set_tis(tis_internal_site5,tis_internal_site3);
-                r = r.set_bonds_init();
+                r.bonds_init = r.set_bonds_init();
                 r.nsite5 = 0;
                 r.site5s_oi = [];
                 r.site5s_bi = [];
@@ -54,28 +59,28 @@ classdef reaction
         %%% set atom types
         function r = set_tis(r,tis_internal_site5,tis_internal_site3)
             r.n_site5 = length(tis_internal_site5);
-            r.tis_site5 = zeros(r.n_site5,1);
             for ib = 1:r.n_site5
-                if tis_internal_site5(ib) == 0
-                    r.tis_site5(ib) = 2;
+                r.tis_site5(ib) = r.ti_start-1 + tis_internal_site5(ib);
+                if tis_internal_site5(ib) <= r.nti-r.nti_nonComp
+                    r.tis_site5_vis(ib) = r.ti_start_vis-1 + floor((tis_internal_site5(ib)+1)/2);
                 else
-                    r.tis_site5(ib) = r.ti_start-1 + tis_internal_site5(ib);
+                    r.tis_site5_vis(ib) = r.ti_start_vis-1 + tis_internal_site5(ib) - 1/2*(r.nti-r.nti_nonComp);
                 end
             end
             r.n_site3 = length(tis_internal_site3);
-            r.tis_site3 = zeros(r.n_site3,1);
             for ib = 1:r.n_site3
-                if tis_internal_site3(ib) == 0
-                    r.tis_site3(ib) = 2;
+                r.tis_site3(ib) = r.ti_start-1 + tis_internal_site3(ib);
+                if tis_internal_site3(ib) <= r.nti-r.nti_nonComp
+                    r.tis_site3_vis(ib) = r.ti_start_vis-1 + floor((tis_internal_site3(ib)+1)/2);
                 else
-                    r.tis_site3(ib) = r.ti_start-1 + tis_internal_site3(ib);
+                    r.tis_site3_vis(ib) = r.ti_start_vis-1 + tis_internal_site3(ib) - 1/2*(r.nti-r.nti_nonComp);
                 end
             end
         end
 
 
         %%% initialize bonds that connect all atoms within site
-        function r = set_bonds_init(r)
+        function bonds_init = set_bonds_init(r)
             nbond_site5 = (r.n_site5*(r.n_site5-1))/2;
             bonds_site5 = ones(nbond_site5,3);
             bond_count = 0;
@@ -96,7 +101,7 @@ classdef reaction
                     bonds_site3(bond_count,3) = j+r.n_site5;
                 end
             end
-            r.bonds_init = [bonds_site5;bonds_site3];
+            bonds_init = [bonds_site5; bonds_site3];
         end
 
 
@@ -1086,7 +1091,7 @@ classdef reaction
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         %%% initialize reaction parameters based on style
-        function [tis_site5,tis_site3,is_charged,params,r12s_max,r12s_min,nti,nsubreact] = init(style,params_input)
+        function [tis_site5,tis_site3,is_charged,params,r12s_max,r12s_min,nti,nti_nonComp,nsubreact] = init(style,params_input)
 
             %%% no charge by default
             is_charged = 0;
@@ -1100,6 +1105,7 @@ classdef reaction
                     %%% atom types
                     tis_site5 = 1;
                     tis_site3 = 2;
+                    nti_nonComp = 0;
 
                     %%% parameter names
                     reaction.check_nparam(params_input,2)
@@ -1117,6 +1123,7 @@ classdef reaction
                     %%% atom types
                     tis_site5 = 1;
                     tis_site3 = 2;
+                    nti_nonComp = 0;
 
                     %%% parameter names
                     reaction.check_nparam(params_input,3)
@@ -1133,8 +1140,9 @@ classdef reaction
                 case "single_stiff"
 
                     %%% atom types
-                    tis_site5 = [1;0];
-                    tis_site3 = [2;0];
+                    tis_site5 = [1;3];
+                    tis_site3 = [2;3];
+                    nti_nonComp = 1;
 
                     %%% parameter names
                     reaction.check_nparam(params_input,3)
@@ -1151,8 +1159,9 @@ classdef reaction
                 case "single_stiff_rev"
 
                     %%% atom types
-                    tis_site5 = [1;0];
-                    tis_site3 = [2;0];
+                    tis_site5 = [1;3];
+                    tis_site3 = [2;3];
+                    nti_nonComp = 1;
 
                     %%% parameter names
                     reaction.check_nparam(params_input,4)
@@ -1170,8 +1179,9 @@ classdef reaction
                 case "single_stiffen"
 
                     %%% atom types
-                    tis_site5 = [1;0];
-                    tis_site3 = [2;0];
+                    tis_site5 = [1;3];
+                    tis_site3 = [2;3];
+                    nti_nonComp = 1;
 
                     %%% parameter names
                     reaction.check_nparam(params_input,4)
@@ -1189,8 +1199,9 @@ classdef reaction
                 case "single_stiffen_rev"
 
                     %%% atom types
-                    tis_site5 = [1;0];
-                    tis_site3 = [2;0];
+                    tis_site5 = [1;3];
+                    tis_site3 = [2;3];
+                    nti_nonComp = 1;
 
                     %%% parameter names
                     reaction.check_nparam(params_input,5)
@@ -1209,8 +1220,9 @@ classdef reaction
                 case "single_stiffen_twist"
 
                     %%% atom types
-                    tis_site5 = [1;0;3];
-                    tis_site3 = [2;0;3];
+                    tis_site5 = [1;3;4];
+                    tis_site3 = [2;3;4];
+                    nti_nonComp = 2;
                     is_charged = 1;
 
                     %%% parameter names
@@ -1231,8 +1243,9 @@ classdef reaction
                 case "single_stiffen2x_twist"
 
                     %%% atom types
-                    tis_site5 = [1;0;3];
-                    tis_site3 = [2;0;3];
+                    tis_site5 = [1;3;4];
+                    tis_site3 = [2;3;4];
+                    nti_nonComp = 2;
                     is_charged = 1;
 
                     %%% parameter names
@@ -1253,8 +1266,9 @@ classdef reaction
                 case "single_stiffen2x_twist2x"
 
                     %%% atom types
-                    tis_site5 = [1;0;3];
-                    tis_site3 = [2;0;3];
+                    tis_site5 = [1;3;4];
+                    tis_site3 = [2;3;4];
+                    nti_nonComp = 2;
                     is_charged = 1;
 
                     %%% parameter names
@@ -1279,6 +1293,7 @@ classdef reaction
                     %%% atom types
                     tis_site5 = [1;3];
                     tis_site3 = [2;4];
+                    nti_nonComp = 0;
 
                     %%% parameter names
                     reaction.check_nparam(params_input,2)
@@ -1294,8 +1309,9 @@ classdef reaction
                 case "double_stiffen"
 
                     %%% atom types
-                    tis_site5 = [1;0;3;0];
-                    tis_site3 = [2;0;4;0];
+                    tis_site5 = [1;5;3;5];
+                    tis_site3 = [2;5;4;5];
+                    nti_nonComp = 1;
                     
                     %%% parameter names
                     reaction.check_nparam(params_input,4)
@@ -1315,6 +1331,7 @@ classdef reaction
                     %%% atom types
                     tis_site5 = [1;3;5;7];
                     tis_site3 = [2;4;6;8];
+                    nti_nonComp = 0;
 
                     %%% parameter names
                     reaction.check_nparam(params_input,2)
@@ -1330,8 +1347,9 @@ classdef reaction
                 case "quad_stiffen"
 
                     %%% atom types
-                    tis_site5 = [1;0;3;0;5;0;7;0];
-                    tis_site3 = [2;0;4;0;6;0;8;0];
+                    tis_site5 = [1;9;3;9;5;9;7;9];
+                    tis_site3 = [2;9;4;9;6;9;8;9];
+                    nti_nonComp = 1;
 
                     %%% parameter names
                     reaction.check_nparam(params_input,4)
@@ -1349,8 +1367,9 @@ classdef reaction
                 case "quad_stiffen2x"
 
                     %%% atom types
-                    tis_site5 = [1;0;3;0;5;0;7;0];
-                    tis_site3 = [2;0;4;0;6;0;8;0];
+                    tis_site5 = [1;9;3;9;5;9;7;9];
+                    tis_site3 = [2;9;4;9;6;9;8;9];
+                    nti_nonComp = 1;
 
                     %%% parameter names
                     reaction.check_nparam(params_input,5)

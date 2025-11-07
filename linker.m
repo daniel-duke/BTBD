@@ -8,6 +8,7 @@ classdef linker
         theta_min       % minimum theta
         theta_max       % maximum theta
         ti_start        % starting atom type
+        ti_start_vis    % starting atom type for visuals
         nsite5          % number of 5p sites
         site5s_oi       % 5p sites origami index
         site5s_bi       % 5p sites block index
@@ -20,7 +21,7 @@ classdef linker
 
     methods
         %%% constructor
-        function l = linker(label,r12_cut,pot_index,ti_start)
+        function l = linker(label,r12_cut,pot_index,ti_start,ti_start_vis)
             if nargin > 0
                 l.label = label;
                 l.r12_cut = r12_cut;
@@ -29,6 +30,7 @@ classdef linker
                 l.theta_min = 0;
                 l.theta_max = 180;
                 l.ti_start = ti_start;
+                l.ti_start_vis = ti_start_vis;
                 l.nsite5 = 0;
                 l.site5s_oi = [];
                 l.site5s_bi = [];

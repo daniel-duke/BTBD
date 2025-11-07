@@ -1,22 +1,22 @@
 %%% parameters
-nstep           1E7
-dump_every      1E4
-dbox            250
-dt              0.04
+nstep           1E6
+dump_every      1E3
+dbox            100
+dt              0.01
 sigma           10
 epsilon         1
 r12_bead        5
 r12_helix       5
 
 %%% potentials
-bond_pot C      harmonic 15 10
-bond_pot L      harmonic 7.2 10
-angle_pot C     harmonic 180 2
-angle_pot Li    cosine 180 20
-angle_pot Lf    harmonic 180 200
-dihedral_pot C  cosine 0 8
-dihedral_pot Li cosine 0 4
-dihedral_pot Lf harmonic 0 80
+bond_pot C          harmonic 15 10
+bond_pot L          harmonic 7.2 10
+angle_pot C         harmonic 180 2
+angle_pot Li        cosine 180 20
+angle_pot Lf        harmonic 180 200
+dihedral_pot C      cosine 0 8
+dihedral_pot Li     cosine 0 4
+dihedral_pot Lf     harmonic 0 80
 
 %%% inert block
 block Bi        1HB 5
@@ -42,12 +42,12 @@ patch CDL       Bi -3.6 0 0
 %%% active block
 block Ba        copy Bi
 patch LMF       Ba 0 0 25
-patch LMB       Ba 0 0 20
-patch LUF       Ba 0 5 25
+patch LMB       Ba 0 0 23 hide
+patch LUF       Ba -0.7 2 25
 
 %%% origami
-origami O1      count 6
-O1 blocks       Ba Ba Bi
+origami O1      count 1
+O1 blocks       Ba Ba Ba
 O1 conn         1 CRUF 2 CLUF C
 O1 conn         1 CRLF 2 CLLF C
 O1 conn         2 CRUF 3 CLUF C

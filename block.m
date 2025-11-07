@@ -2,7 +2,8 @@
 classdef block
     properties
         pattern         % helix locations in block xy-plane
-        hiH             % helix indices of hollow helices
+        hi_hollow       % helix indices of hollow helices
+        is_linear       % whether the pattern is 1HB
         nhelix          % number of helices
         n_helix         % number of beads in each helix
         r_internal      % internal positions (in bead units)
@@ -12,7 +13,8 @@ classdef block
         n_real          % number of real (structural) beads
         n               % number of beads (structural and patches)
         r               % bead positions
-        status          % bead status
+        omit            % whether to omit from simulation, for each bead
+        hide            % whether to hide in visuals, for each bead
         get_hi          % map ib to hi
         get_zi          % map ib to zi
         get_ib          % map hi and zi to ib
@@ -22,7 +24,7 @@ classdef block
         %%% constructor
         function b = block(pattern_label,n_helix,p)
             if nargin > 0
-                [b.pattern,b.hiH] = block.init_pat(pattern_label);
+                [b.pattern,b.hi_hollow,b.is_linear] = block.init(pattern_label);
                 b.nhelix = size(b.pattern,2);
                 b.n_helix = n_helix;
                 b.R = eye(3);
@@ -31,7 +33,8 @@ classdef block
                 b.n_real = b.calc_nbead;
                 b.n = b.n_real;
                 b.r = zeros(3,b.n);
-                b.status = ones(1,b.n);
+                b.omit = zeros(1,b.n);
+                b.hide = zeros(1,b.n);
                 [b.get_hi,b.get_zi,b.get_ib] = map_indices(b);
                 b.r_internal = init_positions_internal(b,p);
             end
@@ -48,14 +51,15 @@ classdef block
             b.patches{b.npatch} = name;
             b.n = b.n + 1;
             b.r(:,b.n) = zeros(3,1);
-            b.status(b.n) = 1;
+            b.omit(b.n) = 0;
+            b.hide(b.n) = 0;
             b.r_internal(:,b.n) = [x;y;z];
         end
 
 
         %%% calcualte number of structural beads in block
         function nbead = calc_nbead(b)
-            nbead = size(b.pattern,2)*min(b.n_helix,2) + (size(b.pattern,2)-length(b.hiH))*max(b.n_helix-2,0);
+            nbead = size(b.pattern,2)*min(b.n_helix,2) + (size(b.pattern,2)-length(b.hi_hollow))*max(b.n_helix-2,0);
         end
 
 
@@ -66,13 +70,13 @@ classdef block
             get_ib = zeros(b.nhelix,b.n_helix);
             for hi = 1:b.nhelix
                 for zi = 1:b.n_helix
-                    if zi ~= 1 && zi ~= b.n_helix && any(b.hiH==hi)
+                    if zi ~= 1 && zi ~= b.n_helix && any(b.hi_hollow==hi)
                         ib = 0;
                     else
                         ib = size(b.pattern,2)*min(zi-1,1) + ...
-                                (size(b.pattern,2)-length(b.hiH))*max(zi-2,0) + hi;
+                                (size(b.pattern,2)-length(b.hi_hollow))*max(zi-2,0) + hi;
                         if zi ~= 1 && zi ~= b.n_helix
-                            ib = ib - sum(b.hiH<hi);
+                            ib = ib - sum(b.hi_hollow<hi);
                         end
                     end
                     get_hi(ib) = hi;
@@ -87,9 +91,9 @@ classdef block
         function ib = get_ib_patch(b,patch)
             patch_index = find(strcmp(b.patches, patch));
             if ~isempty(patch_index)
-                ib = b.n-b.npatch+patch_index;
+                ib = b.n_real+patch_index;
             else
-                error("Unknown patch type: " + patch(3:end) + ".")
+                error("Unknown patch type: " + patch + ".")
             end
         end
 
@@ -147,37 +151,41 @@ classdef block
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         %%% get patterns
-        function [pattern,hiHollow] = init_pat(pattern_label)
+        function [pattern,hi_hollow,is_linear] = init(pattern_label)
 
-            %%% single bundle
-            if pattern_label == "1HB"
-                pattern  = [0;...
-                            0];
-                hiHollow = [];
+            %%% no hollow helices by default
+            hi_hollow = [];
+            is_linear = 0;
 
-            %%% square 8-helix bundle
-            elseif pattern_label == "sq8HB"
-                pattern  = [-1  0  1 -1  1 -1  0  1;...
-                            -1 -1 -1  0  0  1  1  1];
-                hiHollow = [];
+            %%% block pattern
+            switch pattern_label
 
-            %%% hexagonal 8-helix bundle
-            elseif pattern_label == "hex6HB"
-                q = sqrt(3)/2;
-                pattern  = [-1.0 -0.5 0.5 1.0 0.5 -0.5;...
-                            0    -q   -q  0   q   q  ];
-                hiHollow = [];
+                %%% single bundle
+                case "1HB"
+                    is_linear = 1;
+                    pattern  = [ 0 ;...
+                                 0 ];
 
-            %%% hexagonal 16-helix bundle
-            elseif pattern_label == "hex16HB"
-                q = sqrt(3)/2;
-                pattern  = [0 2 3 5  0.5 1.5 3.5 4.5  0.0 2.0 3.0 5.0  0.5 1.5 3.5 4.5;...
-                            0 0 0 0  1*q 1*q 1*q 1*q  2*q 2*q 2*q 2*q  3*q 3*q 3*q 3*q];
-                hiHollow = [6,7,10,11];
+                %%% square 4-helix bundle
+                case "sq4HB"
+                    h = 0.5;
+                    pattern  = [ h  -h  -h   h ;...
+                                 h   h  -h  -h ];
 
-            %%% error
-            else
-                error("Unknown block pattern.")
+                %%% square 8-helix bundle
+                case "sq8HB"
+                    pattern  = [ 1  1  0  -1  -1  -1   0   1 ;...
+                                 0  1  1   1   0  -1  -1  -1 ];
+
+                %%% hexagonal 6-helix bundle
+                case "hex6HB"
+                    h = 0.5; q = sqrt(3)/2;
+                    pattern  = [ 1  h  -h  -1  -h   h ;...
+                                 0  q   q   0  -q  -q ];
+
+                %%% error
+                otherwise
+                    error("Unknown block pattern.")
             end
         end
 

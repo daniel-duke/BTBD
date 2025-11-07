@@ -31,6 +31,9 @@ classdef dihedral_pot
             if dpot.label == "harmonic"
                 dpot.style = "quadratic";
                 dpot.params.k_phi = 6.96*params_input(1);
+                if dpot.phi_eq > 90
+                    warning("Equilibrium angle should be acute for quadratic dihedral to avoid instabilities.")
+                end
 
             %%% cosine dihedral
             elseif dpot.label == "cosine"
@@ -54,15 +57,21 @@ classdef dihedral_pot
 
 
         %%% calculate energy at separation distance
-        function U = calc_energy(dpot,phi)
+        function U = calc_energy(dpot,phi,phi_ref)
+            arguments
+                dpot; phi
+                phi_ref = dpot.phi_eq
+            end
 
             %%% harmonic dihedral
             if dpot.label == "harmonic"
-                U = dpot.params.k_phi/2*(phi-dpot.params.phi_eq)^2;
+                dphi = ars.applyPBC(phi-phi_ref,360);
+                U = dpot.params.k_phi/2*dphi^2;
 
             %%% cosine dihedral
             elseif dpot.label == "cosine"
-                U = dpot.params.k_phi*(1+dpot.params.d*cosd(phi));
+                dphi = ars.applyPBC(phi-phi_ref,360);
+                U = dpot.params.k_phi*(1-cosd(dphi));
 
             end
         end

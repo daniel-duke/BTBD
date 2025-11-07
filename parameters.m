@@ -16,8 +16,11 @@ classdef parameters
         r12_cut_WCA
         r12_helix
         r12_bead
+        mass
         U_strained
-        comm_cutoff
+        comm_cut
+        nABADtype
+        n_vis
     end
 
     methods
@@ -39,8 +42,11 @@ classdef parameters
                 p.r12_cut_WCA = p.sigma*2^(1/6);
                 p.r12_helix = p_input.r12_helix;
                 p.r12_bead = p_input.r12_bead;
+                p.mass = p_input.mass;
                 p.U_strained = 6.96*p_input.U_strained;
-                p.comm_cutoff = p_input.comm_cutoff;
+                p.comm_cut = p_input.comm_cut;
+                p.nABADtype = zeros(1,4);
+                p.n_vis = 0;
             end
         end
     end

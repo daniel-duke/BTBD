@@ -3,23 +3,25 @@ classdef origami
     properties
         label               % origami name
         rigid               % origami or block
+        nblock              % number of blocks
         bs                  % block objects
         nconn               % number of connections
         conns_bis           % connection block indices
         conns_ibs           % connection bead indices
         conns_pot           % connection potential
-        conns_status        % connection status
+        conns_omit          % whether to omit connection
         nangle              % number of angles
         angles_bis          % angle block indices
         angles_ibs          % angle bead indices
         angles_apot         % angle potential
         angles_theta_init   % angle initial theta
         angles_axis_init    % angle initial axis
-        angles_status       % angle status
+        angles_omit         % whether to omit angle
         ndihedral           % number of dihedrals
         dihedrals_bis       % dihedral block indices
         dihedrals_ibs       % dihedral bead indices
         dihedrals_dpot      % dihedral potential
+        dihedrals_phi_init  % dihedral initial phi
         n                   % total number of beads
         r                   % total positions
         get_bi              % map io to bi
@@ -33,23 +35,25 @@ classdef origami
             if nargin > 0
                 o.label = label;
                 o.rigid = "block";
+                o.nblock = 0;
                 o.bs = [];
                 o.nconn = 0;
                 o.conns_bis = [];
                 o.conns_ibs = [];
                 o.conns_pot = bond_pot.empty;
-                o.conns_status = [];
+                o.conns_omit = [];
                 o.nangle = 0;
                 o.angles_bis = [];
                 o.angles_ibs = [];
                 o.angles_apot = angle_pot.empty;
                 o.angles_theta_init = [];
                 o.angles_axis_init = [];
-                o.angles_status = [];
+                o.angles_omit = [];
                 o.ndihedral = 0;
                 o.dihedrals_bis = [];
                 o.dihedrals_ibs = [];
                 o.dihedrals_dpot = dihedral_pot.empty;
+                o.dihedrals_phi_init = [];
             end
         end
 
@@ -59,6 +63,7 @@ classdef origami
 
         %%% add block to origami
         function o = add_block(o,b)
+            o.nblock = o.nblock + 1;
             o.bs = [o.bs b];
             o.n = sum([o.bs.n]);
             o.r = zeros(3,o.n);
@@ -74,7 +79,7 @@ classdef origami
             ib2 = o.bs(bi2).get_ib_patch(patch2);
             o.conns_ibs(:,o.nconn) = [ib1;ib2];
             o.conns_pot(o.nconn) = pot;
-            o.conns_status(o.nconn) = 1;
+            o.conns_omit(o.nconn) = 0;
         end
 
 
@@ -90,7 +95,7 @@ classdef origami
             o.angles_apot(o.nangle) = apot;
             o.angles_theta_init(o.nangle) = apot.theta_eq;
             o.angles_axis_init(:,o.nangle) = [0;0;0];
-            o.angles_status(o.nangle) = 1;
+            o.angles_omit(o.nangle) = 0;
         end
 
 
@@ -104,6 +109,7 @@ classdef origami
             ib4 = o.bs(bi4).get_ib_patch(patch4);
             o.dihedrals_ibs(:,o.ndihedral) = [ib1;ib2;ib3;ib4];
             o.dihedrals_dpot(o.ndihedral) = dpot;
+            o.dihedrals_phi_init(o.ndihedral) = dpot.phi_eq;
         end
 
 
@@ -153,11 +159,8 @@ classdef origami
                         r2 = o.bs(o.angles_bis(2,ai)).r(:,o.angles_ibs(2,ai));
                         r3 = o.bs(o.angles_bis(3,ai)).r(:,o.angles_ibs(3,ai));
                         r4 = o.bs(o.angles_bis(4,ai)).r(:,o.angles_ibs(4,ai));
-                        r12_uv = ars.unitVector(r2-r1);
-                        r23_uv = ars.unitVector(r3-r2);
-                        r34_uv = ars.unitVector(r4-r3);
-                        theta1 = 180-acosd(dot(r12_uv,r23_uv));
-                        theta2 = 180-acosd(dot(r23_uv,r34_uv));
+                        theta1 = ars.calcBondAngle(r2-r1,r3-r2);
+                        theta2 = ars.calcBondAngle(r3-r2,r4-r3);
                         U1 = o.angles_apot(ai).calc_energy(theta1,o.angles_theta_init(ai));
                         U2 = o.angles_apot(ai).calc_energy(theta2,o.angles_theta_init(ai));
                         if U1 > p.U_strained || U2 > p.U_strained
@@ -180,11 +183,8 @@ classdef origami
                         r2 = o.bs(o.dihedrals_bis(2,di)).r(:,o.dihedrals_ibs(2,di));
                         r3 = o.bs(o.dihedrals_bis(3,di)).r(:,o.dihedrals_ibs(3,di));
                         r4 = o.bs(o.dihedrals_bis(4,di)).r(:,o.dihedrals_ibs(4,di));
-                        r12_uv = ars.unitVector(r2-r1);
-                        r23_uv = ars.unitVector(r3-r2);
-                        r34_uv = ars.unitVector(r4-r3);
-                        phi = ars.calcDihedral(r12_uv,r23_uv,r34_uv);
-                        U = o.dihedrals_dpot(di).calc_energy(phi);
+                        phi = ars.calcDihedral(r2-r1,r3-r2,r4-r3);
+                        U = o.dihedrals_dpot(di).calc_energy(phi,o.dihedrals_phi_init(di));
                         if U > p.U_strained
                             failed = true;
                             return
@@ -223,7 +223,7 @@ classdef origami
 
                 %%% loop over remaining blocks
                 failed_block = false;
-                for bi = 2:length(o.bs)
+                for bi = 2:o.nblock
     
                     %%% find first connection between block and any previous block
                     for ci = 1:o.nconn
@@ -387,12 +387,12 @@ classdef origami
 
             %%% center positions
             r_real = [];
-            for bi = 1:length(o.bs)
+            for bi = 1:o.nblock
                 r_real_block = o.bs(bi).r(:,1:o.bs(bi).n_real);
                 r_real = ars.myHorzcat(r_real, r_real_block);
             end
             com_real = ars.calcCOM(r_real, p.dbox);
-            for bi = 1:length(o.bs)
+            for bi = 1:o.nblock
                 o.bs(bi).r = o.bs(bi).r - com_real;
             end
 
@@ -408,10 +408,7 @@ classdef origami
                 end
 
                 %%% initialize proposed positions
-                propose = repmat(struct(),length(o.bs),1);
-                for bi = 1:length(o.bs)
-                    propose(bi).r = o.bs(bi).r;
-                end
+                r_propose = zeros(3,o.n);
 
                 %%% get random basis and position
                 if attempts_place == 0
@@ -426,10 +423,9 @@ classdef origami
                 for io = 1:o.n
                     bi = o.get_bi(io);
                     ib = o.get_ib(io);
-                    r_propose = com + R*o.bs(bi).r(:,ib);
-                    propose(bi).r(:,ib) = r_propose;
+                    r_propose(:,io) = com + R*o.bs(bi).r(:,ib);
                     if ib <= o.bs(bi).n_real
-                        overlap = ars.checkOverlap(r_propose,r_other,p.r12_cut_WCA,p.dbox);
+                        overlap = ars.checkOverlap(r_propose(:,io),r_other,p.r12_cut_WCA,p.dbox);
                         if overlap
                             break
                         end
@@ -443,11 +439,16 @@ classdef origami
                 end
 
                 %%% update origami data
-                o.r = [propose.r];
-                for bi = 1:length(o.bs)
-                    o.bs(bi).r = propose(bi).r;
-                    r_real = o.bs(bi).r(:,1:o.bs(bi).n_real);
-                    r_other = ars.myHorzcat(r_other,r_real);
+                o.r = r_propose;
+                for bi = 1:o.nblock
+                    o.bs(bi).R = R*o.bs(bi).R;
+                    for ib = 1:o.bs(bi).n
+                        io = o.get_io(bi,ib);
+                        o.bs(bi).r(:,ib) = r_propose(:,io);
+                        if ib <= o.bs(bi).n_real
+                            r_other = ars.myHorzcat(r_other,r_propose(:,io));
+                        end
+                    end
                 end
 
                 %%% origami successfully placed
@@ -573,13 +574,7 @@ classdef origami
             b = ars.unitVector(v_f2);
 
             %%% get reference
-            ref = [0;0;1];
-            if norm(ref-a) == 0 || norm(ref-b) == 0
-                ref = [1;0;0];
-                if norm(ref-a) == 0 || norm(ref-b)
-                    ref = [0;1;0];
-                end
-            end
+            ref = ars.randUnitVec();
 
             %%% linear algebra
             ua = ars.unitVector(ref - a*(a'*ref));
