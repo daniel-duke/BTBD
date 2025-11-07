@@ -17,7 +17,7 @@ rng(42)
 % nvar - number of var
 % var.n or n_var - number of beads in var
 % ib - bead index within block
-% io - bead index within entire o rigami
+% io - bead index within entire origami
 % iu - bead index within the universe
 % connection - permenant (usually scaffold) bond
 % linker - switchable (usually sticky end) bond
