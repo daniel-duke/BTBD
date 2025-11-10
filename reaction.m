@@ -1091,8 +1091,8 @@ classdef reaction
         function [tis_site5,tis_site3,is_charged,params,r12s_max,r12s_min,nti,nti_nonComp,nsubreact] = init(style,params_input)
 
             %%% notes
-            % if a max cutoff is zero, it set to the reaction force cutoff
-            % when writing the reaction files.
+            % if a max cutoff is zero, the global neighbor cutoff is used
+              % instead when writing the reaction files.
 
             %%% no charge by default
             is_charged = 0;

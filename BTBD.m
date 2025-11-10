@@ -11,14 +11,15 @@ rng(42)
 
 %%% Notation
 % r - position vector
-% r12 - vector pointing from position of bead 1 to bead 2
-% o, os, oi - origami, list of origamis, origami index
-% b, bs, bi - block, list of blocks, block index
+% r12 - vector pointing from bead 1 to bead 2
 % nvar - number of var
 % var.n or n_var - number of beads in var
-% ib - bead index within block
-% io - bead index within entire origami
-% iu - bead index within the universe
+% o, os, oi - origami, list of origamis, origami index
+% b, bs, bi - block, list of blocks, block index
+% ib, io, iu - bead index within block, origami, universe
+% block - rigid body of structural beads and patches
+% patch - connection points (essentially no mass) on block
+% origami - collection of connected rigid bodies 
 % connection - permenant (usually scaffold) bond
 % linker - formable (usually sticky end) bond
 % reaction - more complex linker
@@ -510,16 +511,6 @@ end
 function [comm_cut, pair_cut_react] = compose_geo(geoFile,geoVisFile,p,os,ls,rs,pots)
     disp("Writing geometry file...")
 
-    %%% notes
-    % the communication cutoff is calculated from the maximum extent of any
-      % bonded interactions, both permenant interactions and potential new
-      % interactions from reactions.
-    % instead of looking through the bonded interactions of each reaction
-       % and calculating its max span, the maximum initiator-bead distance
-       % is calculated for each site, then those values are added to the
-       % initiator bond distance to get the maximum possible span (used to
-       % determine communication cutoff).
-
     %%% name atom types
     ti_structural = 1;
     ti_massSpread = 2;
@@ -915,9 +906,6 @@ end
 %%% write lammps input file
 function write_input(inputFile,reactFold,p,ls,rs,pots,apots,dpots,comm_cut,pair_cut_react)
     disp("Writing input file...")
-
-    %%% notes
-    % structural beads 
 
     %%% calculate cutoffs
     pair_cut_structural = p.r12_cut_WCA;

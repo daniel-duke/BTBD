@@ -459,12 +459,12 @@ classdef origami
         function [R,failed] = optimizeR(o,r12_axis_b1,r12_axis_internal_b1,b0,b1,ib_b0_conn,ib_b1_conn,ib_b0_conn2,ib_b1_conn2,r12_uv_conn,r12_eq_conn,r12_eq_conn2,tolerance)
 
             %%% notes
-            % optimization starts by assuming the second connection
-            % distance is always greater than or equal to the equilibrium
-            % distance, and accordingly it attempts to minimize the
-            % separation; but if it encounters a separation less than the
-            % equilibrium distance, it starts searching for the exact
-            % solution (essentially a root finding problem).
+            % the optimization starts by assuming the second connection
+              % distance is always greater than or equal to the equilibrium
+              % distance, and accordingly it attempts to minimize the
+              % separation, but if it encounters a separation less than the
+              % equilibrium distance, it starts searching for the exact
+              % solution (essentially a root finding problem).
 
             %%% parameters
             max_iterations = 1000;
@@ -560,11 +560,11 @@ classdef origami
         function R = getRotation(v_f1,v_f2,phi)
             
             %%% notes
-            % if the same vector is defined in two frames, the
-            % transformation matrix calculated by this function rotates
-            % the vector from frame 1 into frame 2; however, this does not
-            % fully define the transformation, so an additional rotational
-            % angle phi must be given.
+            % given the same vector defined in two frames, this function
+              % calculates the transformation matrix that rotates the vector
+              % from frame 1 into frame 2; however, this does not fully
+              % define the transformation, so an additional rotational
+              % angle phi must be given.
 
             %%% normalize
             a = ars.unitVector(v_f1); 
