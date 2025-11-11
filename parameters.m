@@ -1,6 +1,8 @@
 %%% parameters class for BTBD
 classdef parameters
     properties
+        rseed
+        rseed_lmp
         nstep
         nstep_relax
         dump_every
@@ -26,6 +28,8 @@ classdef parameters
         %%% constructor
         function p = parameters(p_input)
             if nargin > 0
+                p.rseed = p_input.rseed;
+                p.rseed_lmp = p_input.rseed_lmp;
                 p.nstep = p_input.nstep;
                 p.nstep_relax = p_input.nstep_relax;
                 p.dump_every = p_input.dump_every;

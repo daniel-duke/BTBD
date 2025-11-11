@@ -2,7 +2,8 @@
 clc; clear; close all;
 
 %%% To Do
-% write the script
+% accept number of steps as command line argument
+% save copy of old input (with edited name)
 
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

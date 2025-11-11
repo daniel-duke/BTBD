@@ -1,6 +1,7 @@
 %%% parameters
-nstep           1E6
-dump_every      1E3
+rseed           42
+nstep           2E6
+dump_every      1E4
 dbox            250
 dt              0.1
 sigma           10
@@ -11,14 +12,14 @@ r12_helix       5
 %%% potentials
 bond_pot C          harmonic 15 10
 angle_pot C         harmonic 180 8
-dihedral_pot Cy     harmonic 0 8
+dihedral_pot Cb     harmonic 0 12
 dihedral_pot Cpr    harmonic 3.8 80
 dihedral_pot Cpl    harmonic -3.8 80
 bond_pot L          harmonic 7.2 10
 angle_pot Li        cosine 180 20
 angle_pot Lf        harmonic 180 200
 dihedral_pot Li     cosine 0 4
-dihedral_pot Lf     harmonic 0 80
+dihedral_pot Lf     harmonic 0 10
 
 %%% inert block
 block Bi        1HB 5
@@ -39,7 +40,7 @@ patch CLP2      Bi -1.6  0 -2 hide
 block Ba        copy Bi
 patch LMF       Ba 0 0 25
 patch LMB       Ba 0 0 23 hide
-patch LUF       Ba -0.7 2 25
+patch LUF       Ba -0.77 2 25
 
 %%% origami
 origami O1      count 6
@@ -55,12 +56,12 @@ O1 angle        2 CRA CR 3 CL CLA C theta_init 150 axis_init 0 1 0 omit
 O1 angle        3 CRA CR 1 CL CLA C theta_init 150 axis_init 0 1 0 omit
 
 %%% in-plane
-O1 dihedral     1 CRY2 1 CRY1 1 CR 2 CL Cy phi_init 30
-O1 dihedral     1 CLY2 1 CLY1 1 CL 3 CR Cy phi_init -30
-O1 dihedral     2 CRY2 2 CRY1 2 CR 3 CL Cy phi_init 30
-O1 dihedral     2 CLY2 2 CLY1 2 CL 1 CR Cy phi_init -30
-O1 dihedral     3 CRY2 3 CRY1 3 CR 1 CL Cy phi_init 30
-O1 dihedral     3 CLY2 3 CLY1 3 CL 2 CR Cy phi_init -30
+O1 dihedral     1 CRY2 1 CRY1 1 CR 2 CL Cb phi_init 30
+O1 dihedral     1 CLY2 1 CLY1 1 CL 3 CR Cb phi_init -30
+O1 dihedral     2 CRY2 2 CRY1 2 CR 3 CL Cb phi_init 30
+O1 dihedral     2 CLY2 2 CLY1 2 CL 1 CR Cb phi_init -30
+O1 dihedral     3 CRY2 3 CRY1 3 CR 1 CL Cb phi_init 30
+O1 dihedral     3 CLY2 3 CLY1 3 CL 2 CR Cb phi_init -30
 
 %%% out-of-plane
 O1 dihedral     1 CRP2 1 CRP1 1 CR 2 CL Cpl phi_init 0

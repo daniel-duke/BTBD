@@ -1,6 +1,5 @@
 %%% Housekeeping
 clc; clear; close all;
-rng(42)
 
 %%% To Do
 % update readme
@@ -37,6 +36,9 @@ inFile = "./designs/triarm_v5.txt";
 outFold = "/Users/dduke/Data/triarm/experiment/active/";
 nsim = 1;
 
+%%% set random seed
+rng(p.rseed)
+
 %%% create output folder
 mkdir(outFold)
 
@@ -48,6 +50,9 @@ for i = 1:nsim
         simFold = outFold + "sim" + ars.fstring(i,2,0,"R","zero") + "/";
         mkdir(simFold)
     end
+
+    %%% copy over input file
+    copyfile(inFile,outFold)
 
     %%% initialize positions
     os = init_positions(os,p);
@@ -73,7 +78,9 @@ function p = read_parameters(inFile)
 
     %%% define parameters with their default values
     p_input = struct( ...
-        'nstep',        NaN, ...        % steps         - number of production steps (required)
+        'rseed',        NaN, ...        % none          - random seed for BTBD
+        'rseed_lmp',    37,  ...        % none          - random seed for LAMMPS
+        'nstep',        NaN, ...        % steps         - number of production steps
         'nstep_relax',  1e5, ...        % steps         - number of relaxation/shrink steps
         'dump_every',   1e4, ...        % steps         - number of steps between dumps
         'dbox',         NaN, ...        % nm            - periodic boundary diameter
@@ -1038,7 +1045,7 @@ function write_input(inputFile,reactFold,p,ls,rs,pots,apots,dpots,comm_cut,pair_
     %%% thermostat
     fprintf(f,strcat(...
         "\n## Thermostat\n",...
-        "fix             tstat all rigid/nve molecule langevin ", num2str(p.T), " ", num2str(p.T), " ", num2str(p.dt*10), " 37\n",...
+        "fix             tstat all rigid/nve molecule langevin ", num2str(p.T), " ", num2str(p.T), " ", num2str(p.dt*10), " ", num2str(p.rseed_lmp), "\n",...
         "thermo          ", num2str(p.dump_every), "\n"));
 
     %%% relaxation
