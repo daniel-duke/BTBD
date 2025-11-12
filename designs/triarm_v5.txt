@@ -1,8 +1,8 @@
 %%% parameters
 rseed           42
-nstep           2E6
+nstep           1E6
 dump_every      1E4
-dbox            250
+dbox            300
 dt              0.1
 sigma           10
 epsilon         1
