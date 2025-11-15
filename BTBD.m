@@ -1,12 +1,8 @@
-%%% Housekeeping
-clc; clear; close all;
-
-%%% To Do
-% update readme
-% update helix terminology
-% include single angles
-% broaden initialization (include single angles and dihedrals)
-% multiple structural bead types
+%%% Description
+% Welcome to main function for BTBD! Hopefully the code proves useful and
+% intuitive to edit if need be. For a description of how to utilize the
+% code, see the README. For notes on how the code works and notation, see
+% the comments below and throughout the code.
 
 %%% Notation
 % r - position vector
@@ -23,49 +19,65 @@ clc; clear; close all;
 % linker - formable (usually sticky end) bond
 % reaction - more complex linker
 
+%%% To Do
+% update readme
+% update helix terminology
+% include single angles
+% broaden initialization (include single angles and dihedrals)
+% multiple structural bead types
+
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Heart %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%% read input
-inFile = "./designs/triarm_v5.txt";
-[p,os,ls,rs,pots,apots,dpots] = read_input(inFile);
+%%% main block-tether function
+function BTBD(inFile,nsim,outFold)
 
-%%% set output
-outFold = "/Users/dduke/Data/triarm/experiment/active/";
-nsim = 1;
-
-%%% set random seed
-rng(p.rseed)
-
-%%% create output folder
-mkdir(outFold)
-
-%%% loop over simulations
-for i = 1:nsim
-    if nsim == 1
-        simFold = outFold;
-    else
-        simFold = outFold + "sim" + ars.fstring(i,2,0,"R","zero") + "/";
-        mkdir(simFold)
+    %%% set arguments
+    arguments
+        inFile
+        nsim = 1
+        outFold = pwd
+    end
+    
+    %%% check if running from source directory location
+    srcFold = fileparts(mfilename('fullpath'));
+    if strcmp(outFold,srcFold)
+        error("Writing simulation files to the BTBD source directory should be avoided.")
     end
 
-    %%% copy over input file
-    copyfile(inFile,outFold)
+    %%% read input
+    [p,os,ls,rs,pots,apots,dpots] = read_input(inFile);
 
-    %%% initialize positions
-    os = init_positions(os,p);
+    %%% count digits
+    len_nsim = floor(log10(p.rseed+nsim-1))+1;
+    
+    %%% loop over simulations
+    for i = 1:nsim
+        if nsim == 1
+            simFold = outFold + "/";
+        else
+            simFold = outFold + "/rseed" + ars.fstring(p.rseed+i-1,len_nsim,0,"R","zero") + "/";
+            mkdir(simFold)
+        end
 
-    %%% write lammps simulation geometry file
-    geoFile = simFold + "geometry.in";
-    geoVisFile = simFold + "geometry_vis.in";
-    [comm_cut, pair_cut_react] = compose_geo(geoFile,geoVisFile,p,os,ls,rs,pots);
-
-    %%% write lammps input file
-    inputFile = simFold + "lammps.in";
-    reactFold = simFold + "react/";
-    write_input(inputFile,reactFold,p,ls,rs,pots,apots,dpots,comm_cut,pair_cut_react)
+        %%% set random seed
+        rng(p.rseed+i-1)
+    
+        %%% initialize positions
+        os = init_positions(os,p);
+    
+        %%% write lammps simulation geometry file
+        geoFile = simFold + "geometry.in";
+        geoVisFile = simFold + "geometry_vis.in";
+        [comm_cut, pair_cut_react] = compose_geo(geoFile,geoVisFile,p,os,ls,rs,pots);
+    
+        %%% write lammps input file
+        inputFile = simFold + "lammps.in";
+        reactFold = simFold + "react/";
+        write_input(inputFile,reactFold,p,ls,rs,pots,apots,dpots,comm_cut,pair_cut_react)
+    end
 end
 
 
