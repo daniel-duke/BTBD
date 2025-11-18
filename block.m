@@ -1,11 +1,11 @@
 %%% block class for BTBD
 classdef block
     properties
-        pattern         % helix locations in block xy-plane
-        hi_hollow       % helix indices of hollow helices
+        pattern         % column locations in block xy-plane
+        ci_hollow       % column indices of hollow columns
         is_linear       % whether the pattern is 1HB
-        nhelix          % number of helices
-        n_helix         % number of beads in each helix
+        ncol            % number of helices
+        n_col           % number of beads in each helix
         r_internal      % internal positions (in bead units)
         R               % rotation matrix (block to lab coords)
         npatch          % number of patches
@@ -15,18 +15,18 @@ classdef block
         r               % bead positions
         omit            % whether to omit from simulation, for each bead
         hide            % whether to hide in visuals, for each bead
-        get_hi          % map ib to hi
+        get_ci          % map ib to ci
         get_zi          % map ib to zi
-        get_ib          % map hi and zi to ib
+        get_ib          % map ci and zi to ib
     end
 
     methods
         %%% constructor
-        function b = block(pattern_label,n_helix,p)
+        function b = block(pattern_label,n_col,p)
             if nargin > 0
-                [b.pattern,b.hi_hollow,b.is_linear] = block.init(pattern_label);
-                b.nhelix = size(b.pattern,2);
-                b.n_helix = n_helix;
+                [b.pattern,b.ci_hollow,b.is_linear] = block.init(pattern_label);
+                b.ncol = size(b.pattern,2);
+                b.n_col = n_col;
                 b.R = eye(3);
                 b.npatch = 0;
                 b.patches = {};
@@ -35,7 +35,7 @@ classdef block
                 b.r = zeros(3,b.n);
                 b.omit = zeros(1,b.n);
                 b.hide = zeros(1,b.n);
-                [b.get_hi,b.get_zi,b.get_ib] = map_indices(b);
+                [b.get_ci,b.get_zi,b.get_ib] = map_indices(b);
                 b.r_internal = init_positions_internal(b,p);
             end
         end
@@ -59,29 +59,28 @@ classdef block
 
         %%% calcualte number of structural beads in block
         function nbead = calc_nbead(b)
-            nbead = size(b.pattern,2)*min(b.n_helix,2) + (size(b.pattern,2)-length(b.hi_hollow))*max(b.n_helix-2,0);
+            nbead = size(b.pattern,2)*min(b.n_col,2) + (size(b.pattern,2)-length(b.ci_hollow))*max(b.n_col-2,0);
         end
 
 
         %%% get block index from geometrical indices
-        function [get_hi,get_zi,get_ib] = map_indices(b)
-            get_hi = zeros(1,b.n);
+        function [get_ci,get_zi,get_ib] = map_indices(b)
+            get_ci = zeros(1,b.n);
             get_zi = zeros(1,b.n);
-            get_ib = zeros(b.nhelix,b.n_helix);
-            for hi = 1:b.nhelix
-                for zi = 1:b.n_helix
-                    if zi ~= 1 && zi ~= b.n_helix && any(b.hi_hollow==hi)
+            get_ib = zeros(b.ncol,b.n_col);
+            for ci = 1:b.ncol
+                for zi = 1:b.n_col
+                    if zi ~= 1 && zi ~= b.n_col && any(b.ci_hollow==ci)
                         ib = 0;
                     else
-                        ib = size(b.pattern,2)*min(zi-1,1) + ...
-                                (size(b.pattern,2)-length(b.hi_hollow))*max(zi-2,0) + hi;
-                        if zi ~= 1 && zi ~= b.n_helix
-                            ib = ib - sum(b.hi_hollow<hi);
+                        ib = size(b.pattern,2)*min(zi-1,1) + (size(b.pattern,2)-length(b.ci_hollow))*max(zi-2,0) + ci;
+                        if zi ~= 1 && zi ~= b.n_col
+                            ib = ib - sum(b.ci_hollow<ci);
                         end
                     end
-                    get_hi(ib) = hi;
+                    get_ci(ib) = ci;
                     get_zi(ib) = zi;
-                    get_ib(hi,zi) = ib;
+                    get_ib(ci,zi) = ib;
                 end
             end
         end
@@ -102,10 +101,10 @@ classdef block
         function r_internal = init_positions_internal(b,p)
             r_internal = zeros(3,b.n);
             for ib = 1:b.n_real
-                hi = b.get_hi(ib);
+                ci = b.get_ci(ib);
                 zi = b.get_zi(ib);
-                r_internal(1:2,ib) = p.r12_helix.*b.pattern(:,hi);
-                r_internal(3,ib) = p.r12_bead.*(zi-1);
+                r_internal(1:2,ib) = p.r12_xy.*b.pattern(:,ci);
+                r_internal(3,ib) = p.r12_z.*(zi-1);
             end
         end
 
@@ -151,10 +150,10 @@ classdef block
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         %%% get patterns
-        function [pattern,hi_hollow,is_linear] = init(pattern_label)
+        function [pattern,ci_hollow,is_linear] = init(pattern_label)
 
-            %%% no hollow helices by default
-            hi_hollow = [];
+            %%% no hollow helices and not linear by default
+            ci_hollow = [];
             is_linear = 0;
 
             %%% block pattern

@@ -6,11 +6,11 @@ dbox            100                 % periodic boundary diameter
 dt              0.04                % integration time step
 sigma           10                  % WCA distance parameter
 epsilon         1                   % WCA energy parameters
-r12_bead        5                   % block bead separation in xy-plane
-r12_helix       5                   % block bead separation along z-axis
+r12_xy          5                   % structural bead separation in block xy-plane
+r12_z           5                   % structural bead separation along block z-axis
 
 %%% blocks
-block B1        1HB 11              % pattern in xy-plane, number of beads in z-axis
+block B1        1HB 11              % pattern in xy-plane, number of xy  s in z-axis
 
 %%% patches
 patch L1        B1 5 0 5            % block type, x, y, z

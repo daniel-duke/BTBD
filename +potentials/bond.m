@@ -1,5 +1,5 @@
 %%% bond potential class for BTBD
-classdef bond_pot
+classdef bond
     properties
         style           % bond style (BTBD notation)
         style_lmp       % bond style (LAMMPS notation)
@@ -10,7 +10,7 @@ classdef bond_pot
 
     methods
         %%% constructor
-        function pot = bond_pot(style,r12_eq,params_input,index)
+        function pot = bond(style,r12_eq,params_input,index)
             if nargin > 0
                 pot.style = style;
                 pot.r12_eq = r12_eq;

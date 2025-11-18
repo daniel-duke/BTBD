@@ -1,33 +1,43 @@
-%%% Housekeeping
-clc; clear; close all;
+%%% read old lammps file and write new one to continue the simulation
+function restart(nstep,replace,nsim,outFold)
 
-%%% To Do
-% accept number of steps as command line argument
-% save copy of old input (with edited name)
-
-
-%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Heart %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%% parameters
-nstep = 1E5;
-
-%%% set output
-outFold = "/Users/dduke/Data/triarm/experiment/active/";
-nsim = 1;
-
-%%% loop over simulations
-for i = 1:nsim
-    if nsim == 1
-        simFold = outFold;
-    else
-        simFold = outFold + "sim" + ars.fstring(i,2,0,"R","zero") + "/";
+    %%% set arguments
+    arguments
+        nstep double
+        replace double = 0
+        nsim double = 1
+        outFold char = pwd
     end
 
-    %%% rewrite lammps input file
-    inputFile = simFold + "lammps.in";
-    edit_input(inputFile, nstep)
+    %%% loop over simulations
+    for i = 1:nsim
+
+        %%% single simulation
+        if nsim == 1
+            simFold = outFold;
+
+        %%% multiple simulations
+        else
+            if i == 1; ndigit_nsim = floor(log10(nsim))+1; end
+            if i > 1; p.rseed_lmp = p.rseed_lmp + 1; end
+            simFileName = "sim" + ars.fstring(i,ndigit_nsim,0,"R","zero");
+            simFold = fullfile(outFold,simFileName);
+        end
+
+        %%% get current run number
+        lammpsFile = fullfile(simFold,"lammps.in");
+        run = get_run_number(lammpsFile);
+
+        %%% save copy of old file
+        if ~replace
+            oldLammpsFileName = "lammps_run" + run + ".in";
+            copyfile(lammpsFile,fullfile(simFold,oldLammpsFileName))
+            run = run + 1;
+        end
+
+        %%% rewrite lammps file
+        edit_lammps(lammpsFile,nstep,run)
+    end
 end
 
 
@@ -35,16 +45,33 @@ end
 %%% File Handlers %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%% read old lammps file and write edited version
-function edit_input(inFile, nstep)
+%%% extract run number from lammps file
+function run = get_run_number(lammpsFile)
 
-    %%% check file exists
-    if ~isfile(inFile)
-        error("Could not find input file: " + inFile);
+    %%% open file
+    ars.checkFileExist(lammpsFile,"lammps");
+    f = fopen(lammpsFile,'r');
+
+    %%% read file
+    content = textscan(f, '%s', 'Delimiter', '\n', 'Whitespace', '');
+    content = content{1};
+    fclose(f);
+
+    %%% find run number
+    for i = 1:length(content)
+        if startsWith(content{i}, '# Run')
+            run = str2double(content{i}(7:end));
+            return
+        end
     end
+end
+
+
+%%% adjust lammps script for restarting the simulation
+function edit_lammps(lammpsFile,nstep,run)
 
     % read old lammps file
-    f = fopen(inFile, 'r');
+    f = fopen(lammpsFile,'r');
     content_in = textscan(f, '%s', 'Delimiter', '\n', 'Whitespace', '');
     content_in = content_in{1};
     fclose(f);
@@ -58,8 +85,12 @@ function edit_input(inFile, nstep)
     while i_in <= numel(content_in)
         content_out{i_out} = content_in{i_in};
 
+        %%% adjust run number
+        if startsWith(content_in{i_in}, '# Run')
+            content_out{i_out} = "# Run " + num2str(run);
+
         %%% set how to read geometry
-        if startsWith(content_in{i_in}, '## Geometry')
+        elseif startsWith(content_in{i_in}, '## Geometry')
             content_out{i_out+1} = 'read_restart    restart_binary2.out';
             i_out = i_out + 1;
 
@@ -99,7 +130,7 @@ function edit_input(inFile, nstep)
     end
 
     %%% write edited lammps file
-    f = fopen(inFile, 'w');
+    f = fopen(lammpsFile,'w');
     fprintf(f, '%s\n', content_out{:});
     fclose(f);
 end

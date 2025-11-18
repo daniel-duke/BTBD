@@ -1,5 +1,5 @@
 %%% dihedral potential class for BTBD
-classdef dihedral_pot
+classdef dihedral
     properties
         style           % dihedral style (BTBD notation)
         style_lmp       % dihedral style (LAMMPS notation)
@@ -10,7 +10,7 @@ classdef dihedral_pot
 
     methods
         %%% constructor
-        function dpot = dihedral_pot(label,phi_eq,params_input,index)
+        function dpot = dihedral(label,phi_eq,params_input,index)
             if nargin > 0
                 dpot.style = label;
                 dpot.phi_eq = phi_eq;

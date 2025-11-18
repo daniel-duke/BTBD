@@ -39,19 +39,19 @@ classdef origami
                 o.nconn = 0;
                 o.conns_bis = [];
                 o.conns_ibs = [];
-                o.conns_pot = bond_pot.empty;
+                o.conns_pot = potentials.bond.empty;
                 o.conns_omit = [];
                 o.nangle = 0;
                 o.angles_bis = [];
                 o.angles_ibs = [];
-                o.angles_apot = angle_pot.empty;
+                o.angles_apot = potentials.angle.empty;
                 o.angles_theta_init = [];
                 o.angles_axis_init = [];
                 o.angles_omit = [];
                 o.ndihedral = 0;
                 o.dihedrals_bis = [];
                 o.dihedrals_ibs = [];
-                o.dihedrals_dpot = dihedral_pot.empty;
+                o.dihedrals_dpot = potentials.dihedral.empty;
                 o.dihedrals_phi_init = [];
             end
         end

@@ -6,8 +6,8 @@ dbox            250
 dt              0.04
 sigma           10
 epsilon         1
-r12_bead        5
-r12_helix       5
+r12_xy          5
+r12_z           5
 
 %%% potentials
 bond_pot Cds    harmonic 15 10

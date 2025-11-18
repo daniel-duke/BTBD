@@ -1,5 +1,5 @@
 %%% angle potential class for BTBD
-classdef angle_pot
+classdef angle
     properties
         style           % angle style (BTBD notation)
         style_lmp       % angle style (LAMMPS notation)
@@ -10,7 +10,7 @@ classdef angle_pot
 
     methods
         %%% constructor
-        function apot = angle_pot(style,theta_eq,params_input,index)
+        function apot = angle(style,theta_eq,params_input,index)
             if nargin > 0
                 apot.style = style;
                 apot.theta_eq = theta_eq;

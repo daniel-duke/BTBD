@@ -21,7 +21,6 @@
 
 %%% To Do
 % update readme
-% update helix terminology
 % include single angles
 % broaden initialization (include single angles and dihedrals)
 % multiple structural bead types
@@ -31,52 +30,67 @@
 %%% Heart %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%% main block-tether function
+%%% main function
 function BTBD(inFile,nsim,outFold)
 
     %%% set arguments
     arguments
-        inFile
-        nsim = 1
-        outFold = pwd
+        inFile char
+        nsim double = 1
+        outFold char = pwd
     end
     
     %%% check if running from source directory location
-    srcFold = fileparts(mfilename('fullpath'));
-    if strcmp(outFold,srcFold)
+    BTBDfold = fileparts(mfilename('fullpath'));
+    if ars.checkPathsSame(outFold,BTBDfold)
         error("Writing simulation files to the BTBD source directory should be avoided.")
+    end
+
+    %%% create output folder, if not working folder
+    if ~ars.checkPathsSame(outFold,pwd)
+        mkdir(outFold)
+    end
+
+    %%% copy input file to output folder, if not already there
+    outInFile = fullfile(outFold,ars.getFileName(inFile));
+    if ~ars.checkPathsSame(outInFile,inFile)
+        copyfile(inFile,outInFile)
     end
 
     %%% read input
     [p,os,ls,rs,pots,apots,dpots] = read_input(inFile);
 
-    %%% count digits
-    len_nsim = floor(log10(p.rseed+nsim-1))+1;
-    
+    %%% set random seed
+    rng(p.rseed)
+
+    %%% initialize positions
+    os = init_positions(os,p);
+
     %%% loop over simulations
     for i = 1:nsim
+
+        %%% single simulation
         if nsim == 1
-            simFold = outFold + "/";
+            simFold = outFold;
+
+        %%% multiple simulations
         else
-            simFold = outFold + "/rseed" + ars.fstring(p.rseed+i-1,len_nsim,0,"R","zero") + "/";
+            if i == 1; ndigit_nsim = floor(log10(nsim))+1; end
+            if i > 1; p.rseed_lmp = p.rseed_lmp + 1; end
+            simFileName = "sim" + ars.fstring(i,ndigit_nsim,0,"R","zero");
+            simFold = fullfile(outFold,simFileName);
             mkdir(simFold)
         end
-
-        %%% set random seed
-        rng(p.rseed+i-1)
-    
-        %%% initialize positions
-        os = init_positions(os,p);
     
         %%% write lammps simulation geometry file
-        geoFile = simFold + "geometry.in";
-        geoVisFile = simFold + "geometry_vis.in";
+        geoFile = fullfile(simFold,"geometry.in");
+        geoVisFile = fullfile(simFold,"geometry_vis.in");
         [comm_cut, pair_cut_react] = compose_geo(geoFile,geoVisFile,p,os,ls,rs,pots);
     
         %%% write lammps input file
-        inputFile = simFold + "lammps.in";
-        reactFold = simFold + "react/";
-        write_input(inputFile,reactFold,p,ls,rs,pots,apots,dpots,comm_cut,pair_cut_react)
+        lammpsFile = fullfile(simFold,"lammps.in");
+        reactFold = fullfile(simFold,"react");
+        write_lammps(lammpsFile,reactFold,p,ls,rs,pots,apots,dpots,comm_cut,pair_cut_react)
     end
 end
 
@@ -89,32 +103,11 @@ end
 function p = read_parameters(inFile)
 
     %%% define parameters with their default values
-    p_input = struct( ...
-        'rseed',        NaN, ...        % none          - random seed for BTBD
-        'rseed_lmp',    37,  ...        % none          - random seed for LAMMPS
-        'nstep',        NaN, ...        % steps         - number of production steps
-        'nstep_relax',  1e5, ...        % steps         - number of relaxation/shrink steps
-        'dump_every',   1e4, ...        % steps         - number of steps between dumps
-        'dbox',         NaN, ...        % nm            - periodic boundary diameter
-        'shrink_ratio', 1,   ...        % none          - box compression (final/initial)
-        'dt',           NaN, ...        % ns            - integration time step
-        'verlet_skin',  4,   ...        % nm            - width of neighbor list skin
-        'neigh_every',  1e1, ...        % steps         - how often to consider updating neighbor list
-        'react_every',  1e1, ...        % steps         - how often to check for linker hybridization
-        'T',            300, ...        % K             - temperature
-        'sigma',        NaN, ...        % nm            - WCA distance parameter
-        'epsilon',      NaN, ...        % kcal/mol      - WCA energy parameter
-        'r12_bead',     NaN, ...        % nm            - block bead separation in xy-plane
-        'r12_helix',    NaN, ...        % nm            - block bead separation along z-axis
-        'mass',         1,   ...        % none          - mass of structural beads
-        'U_strained',   10   ...        % kcal/mol      - max energy for initialized bonds and angles
-    );
+    p_input = parameters.defaults;
 
     %%% open file
-    f = fopen(inFile, 'r');
-    if f == -1
-        error("Could not open file.");
-    end
+    ars.checkFileExist(inFile,"input");
+    f = fopen(inFile,'r');
 
     %%% loop over lines
     while ~feof(f)
@@ -128,8 +121,13 @@ function p = read_parameters(inFile)
         end
    
         %%% set parameter
-        if ismember(extract{1}, fieldnames(p_input))
+        if isfield(p_input, extract{1})
             p_input.(extract{1}) = str2double(extract{2});
+        elseif isfield(parameters.name_changes, extract{1})
+            old = extract{1};
+            new = parameters.name_changes.(extract{1});
+            warning('Outdated parameter name "%s" found in input file, consider using "%s" instead.', old, new);
+            p_input.(new) = str2double(extract{2});
         end
     end
     fclose(f);
@@ -147,16 +145,14 @@ end
 
 
 %%% read input file and create corresponding origami objects
-function [p,os,ls,rs,pots,apots,dpots] = read_input(inFile)
+    function [p,os,ls,rs,pots,apots,dpots] = read_input(inFile)
 
     %%% read parameters
     p = read_parameters(inFile);
 
     %%% open file
-    f = fopen(inFile, 'r');
-    if f == -1
-        error("Could not open file.");
-    end
+    ars.checkFileExist(inFile,"input");
+    f = fopen(inFile,'r');
 
     %%% initialize dictionaries
     pots = dictionary();
@@ -169,7 +165,7 @@ function [p,os,ls,rs,pots,apots,dpots] = read_input(inFile)
     reactions = dictionary();
 
     %%% define zero potential
-    pots("zero") = bond_pot("zero",0,[],1);
+    pots("zero") = potentials.bond("zero",0,[],1);
 
     %%% keep track of atom types
     ti_count = 3;
@@ -200,7 +196,7 @@ function [p,os,ls,rs,pots,apots,dpots] = read_input(inFile)
                 r12_eq = str2double(extract{4});
                 params = str2double(extract(5:end));
                 index = 1 + numEntries(pots);
-                pots(extract{2}) = bond_pot(style,r12_eq,params,index);
+                pots(extract{2}) = potentials.bond(style,r12_eq,params,index);
 
             %%% define angle potential
             case 'angle_pot'
@@ -208,7 +204,7 @@ function [p,os,ls,rs,pots,apots,dpots] = read_input(inFile)
                 theta_eq = str2double(extract{4});
                 params = str2double(extract(5:end));
                 index = 1+numEntries(apots);
-                apots(extract{2}) = angle_pot(style,theta_eq,params,index);
+                apots(extract{2}) = potentials.angle(style,theta_eq,params,index);
 
             %%% define dihedral potential
             case 'dihedral_pot'
@@ -216,7 +212,7 @@ function [p,os,ls,rs,pots,apots,dpots] = read_input(inFile)
                 theta_eq = str2double(extract{4});
                 params = str2double(extract(5:end));
                 index = 1+numEntries(dpots);
-                dpots(extract{2}) = dihedral_pot(style,theta_eq,params,index);
+                dpots(extract{2}) = potentials.dihedral(style,theta_eq,params,index);
 
             %%% define block
             case 'block'
@@ -224,8 +220,8 @@ function [p,os,ls,rs,pots,apots,dpots] = read_input(inFile)
                     block_templates(extract{2}) = block_templates(extract{4});
                 else
                     pattern_label = convertCharsToStrings(extract{3});
-                    n_helix = str2double(extract{4});
-                    block_templates(extract{2}) = block(pattern_label,n_helix,p);
+                    n_col = str2double(extract{4});
+                    block_templates(extract{2}) = block(pattern_label,n_col,p);
                 end
 
             %%% add patch to block
@@ -483,8 +479,8 @@ function [p,os,ls,rs,pots,apots,dpots] = read_input(inFile)
                     end
 
                 %%% error
-                elseif ~ismember(extract{1},fieldnames(p))
-                    error("Unknown system parameter: " + extract{1})
+                elseif ~ismember(extract{1},fieldnames(parameters.defaults)) && ~ismember(extract{1},fieldnames(parameters.name_changes))
+                    warning("Unknown system parameter: " + extract{1})
                 end
         end
     end
@@ -528,7 +524,7 @@ end
 
 %%% write lammps geometry file
 function [comm_cut, pair_cut_react] = compose_geo(geoFile,geoVisFile,p,os,ls,rs,pots)
-    disp("Writing geometry file...")
+    disp("Writing geometry files...")
 
     %%% name atom types
     ti_structural = 1;
@@ -923,25 +919,26 @@ end
 
 
 %%% write lammps input file
-function write_input(inputFile,reactFold,p,ls,rs,pots,apots,dpots,comm_cut,pair_cut_react)
-    disp("Writing input file...")
+function write_lammps(lammpsFile,reactFold,p,ls,rs,pots,apots,dpots,comm_cut,pair_cut_react)
+    disp("Writing LAMMPS input file...")
 
     %%% calculate cutoffs
     pair_cut_structural = p.r12_cut_WCA;
     neigh_cut = max([pair_cut_structural,pair_cut_react]) + p.verlet_skin;
 
     %%% open file
-    f = fopen(inputFile,'w');
+    f = fopen(lammpsFile,'w');
     
     %%% header
     fprintf(f,strcat(...
         "\n#------ Begin Input ------#\n",...
-        "# Written by BTBD.m\n"));
+        "# Written by BTBD\n",...
+        "# Run 1\n"));
 
     %%% basic setup
     fprintf(f,strcat(...
         "\n## Environment\n",...
-        "units           nano\n",...
+        "units           nano\n",...s
         "dimension       3\n",...
         "boundary        p p p\n",...
         "atom_style      full\n",...

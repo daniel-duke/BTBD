@@ -186,12 +186,13 @@ classdef reaction
             ndihedral = size(dihedrals,1);
 
             %%% open file
-            molFile = reactFold + string(r.label) + "_r" + string(ri);
+            molFileName = string(r.label) + "_r" + string(ri);
             if is_pre
-                molFile = molFile + "_pre.txt";
+                molFileName = molFileName + "_pre.txt";
             else
-                molFile = molFile + "_pst.txt";
+                molFileName = molFileName + "_pst.txt";
             end
+            molFile = fullfile(reactFold,molFileName);
             f = fopen(molFile,'w');
 
             %%% header
@@ -324,7 +325,8 @@ classdef reaction
             ncons = nacons + ndcons + r.is_charged*2;
 
             %%% open file
-            mapFile = reactFold + string(r.label) + "_r" + string(ri) + "_map.txt";
+            mapFileName = string(r.label) + "_r" + string(ri) + "_map.txt";
+            mapFile = fullfile(reactFold,mapFileName);
             f = fopen(mapFile,'w');
            
             %%% header
