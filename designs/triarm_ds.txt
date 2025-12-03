@@ -1,8 +1,8 @@
 %%% parameters
-rseed           1
+rseed           42
 nstep           1E6
-dump_every      1E4
-dbox            300
+dump_every      1E3
+dbox            100
 dt              0.1
 sigma           10
 epsilon         1
@@ -43,7 +43,7 @@ patch LMB       Ba 0 0 23 hide
 patch LUF       Ba -0.77 2 25
 
 %%% origami
-origami O1      count 6
+origami O1      count 1
 O1 blocks       Ba Ba Bi
 O1 conn         1 CR 2 CL C
 O1 conn         2 CR 3 CL C
