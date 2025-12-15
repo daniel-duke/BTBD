@@ -25,9 +25,17 @@ function expanded = expandTilde(path)
 end
 
 function absPath = getAbsolutePath(path)
-    if startsWith(path, './') || startsWith(path, '../') || ~startsWith(path, '/')
-        absPath = fullfile(pwd, path);
+    if ispc
+        if startsWith(path, '.\') || startsWith(path, '..\') || ~startsWith(path, '\')
+            absPath = fullfile(pwd, path);
+        else
+            absPath = path;
+        end
     else
-        absPath = path;
+        if startsWith(path, './') || startsWith(path, '../') || ~startsWith(path, '/')
+            absPath = fullfile(pwd, path);
+        else
+            absPath = path;
+        end
     end
 end
